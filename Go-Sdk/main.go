@@ -20,8 +20,8 @@ type TransferRequest struct {
 }
 
 // CORS middleware
-func enableCORS(handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -34,8 +34,8 @@ func enableCORS(handler http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		handler(w, r)
-	}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func sendLumens(w http.ResponseWriter, r *http.Request) {
@@ -115,13 +115,15 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/api/send", enableCORS(sendLumens))
-	http.HandleFunc("/api/health", enableCORS(healthCheck))
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/send", sendLumens)
+	mux.HandleFunc("/api/health", healthCheck)
 
 	fmt.Println("🚀 StellarPay API running at http://localhost:8080")
 	fmt.Println("📡 Endpoints:")
 	fmt.Println("   POST /api/send   - Send XLM to recipient")
 	fmt.Println("   GET  /api/health - Health check")
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", enableCORS(mux)))
 }
