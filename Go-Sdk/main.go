@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/keypair"
@@ -20,10 +22,31 @@ type TransferRequest struct {
 }
 
 // CORS middleware
+// CORS middleware
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Get allowed origins from environment variable
+		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+		if allowedOrigins == "" {
+			allowedOrigins = "http://localhost:3000" // Default for local react dev
+		}
+
+		origin := r.Header.Get("Origin")
+		allowOrigin := ""
+
+		// Check if the request origin is allowed
+		for _, o := range strings.Split(allowedOrigins, ",") {
+			if strings.TrimSpace(o) == origin {
+				allowOrigin = origin
+				break
+			}
+		}
+
+		// If origin is allowed, set the header
+		if allowOrigin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+		}
+		
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Max-Age", "86400")
