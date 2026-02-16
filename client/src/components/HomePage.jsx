@@ -6,6 +6,7 @@ import PayCycleProgress from "./PayCycleProgress";
 import WithdrawForm from "./WithdrawForm";
 import TransactionHistory from "./TransactionHistory";
 import SendMoneyModal from "./SendMoneyModal";
+import WaitlistModal from "./WaitlistModal";
 
 const HomePage = () => {
   const {
@@ -28,6 +29,7 @@ const HomePage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
 
   useEffect(() => {
     if (walletAddress) {
@@ -51,6 +53,10 @@ const HomePage = () => {
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleWaitlistSuccess = (email) => {
+    showNotification(`🎉 Welcome aboard! We'll notify you at ${email}`);
   };
 
   const handleWithdraw = async (amount) => {
@@ -233,7 +239,7 @@ const HomePage = () => {
                 <span className="text-gray-500">ⓘ</span>
               </button>
               <button 
-                onClick={connectWallet}
+                onClick={() => setShowWaitlistModal(true)}
                 className="px-6 py-3 rounded-lg bg-gradient-to-r from-pink-300/90 to-purple-300/90 text-black font-semibold hover:opacity-90 transition-all flex items-center gap-2"
               >
                 Join the Waitlist
@@ -402,6 +408,14 @@ const HomePage = () => {
           onClose={() => setShowSendModal(false)}
           onSend={handleSendMoney}
           isLoading={isLoading}
+        />
+      )}
+
+      {/* Waitlist Modal */}
+      {showWaitlistModal && (
+        <WaitlistModal
+          onClose={() => setShowWaitlistModal(false)}
+          onSuccess={handleWaitlistSuccess}
         />
       )}
 
