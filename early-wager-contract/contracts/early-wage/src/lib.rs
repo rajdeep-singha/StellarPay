@@ -1,33 +1,117 @@
 #![no_std]
+
+#[cfg(test)]
+mod test;
+
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, Env, Map, Symbol,
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, Map,
+    Symbol,
 };
 
-#[contract]
-pub struct EarlyWageContract;
+// ============================================================
+// Error Types — Replace raw panic! with typed, on-chain errors
+// ============================================================
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ContractError {
+    /// The contract has not been initialized yet.
+    NotInitialized = 1,
+    /// The contract has already been initialized.
+    AlreadyInitialized = 2,
+    /// The caller is not the contract administrator.
+    Unauthorized = 3,
+    /// The wallet address is already registered as an employee.
+    AlreadyRegistered = 4,
+    /// The requested employee ID does not exist.
+    EmployeeNotFound = 5,
+    /// The requested advance exceeds the remaining salary.
+    ExceedsRemainingSalary = 6,
+    /// The amount must be greater than zero.
+    InvalidAmount = 7,
+    /// No remaining salary to release.
+    NoRemainingSalary = 8,
+}
 
+// ============================================================
+// Storage Keys
+// ============================================================
+const ADMIN: Symbol = symbol_short!("ADMIN");
 const EMP_COUNT: Symbol = symbol_short!("EMP_COUNT");
 const EMP_DETAILS: Symbol = symbol_short!("EMP_DET");
 const WALLET_TO_ID: Symbol = symbol_short!("wal2id");
+const INITIALIZED: Symbol = symbol_short!("INIT");
 
+// ============================================================
+// Data Types
+// ============================================================
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmployeeDetails {
     pub emp_id: u128,
     pub wallet: Address,
     pub rem_salary: u128,
 }
 
-fn distribute_for_demo(e: &Env, sender: Address, add1: Address, add2: Address, token: Address) {
-    sender.require_auth();
-    let token = token::TokenClient::new(e, &token);
-
-    token.transfer_from(&sender, &sender, &add1, &1000);
-    token.transfer_from(&sender, &sender, &add2, &1000);
-}
+// ============================================================
+// Contract
+// ============================================================
+#[contract]
+pub struct EarlyWageContract;
 
 #[contractimpl]
 impl EarlyWageContract {
-    pub fn register_employee(e: Env, wallet: Address, salary: u128) {
+    // --------------------------------------------------------
+    // Initialization — must be called once by the deployer
+    // --------------------------------------------------------
+
+    /// Initialize the contract with an administrator address.
+    /// Can only be called once.
+    pub fn initialize(e: Env, admin: Address) -> Result<(), ContractError> {
+        if e.storage().instance().has(&INITIALIZED) {
+            return Err(ContractError::AlreadyInitialized);
+        }
+
+        admin.require_auth();
+
+        e.storage().instance().set(&ADMIN, &admin);
+        e.storage().instance().set(&INITIALIZED, &true);
+        e.storage().instance().set(&EMP_COUNT, &0u128);
+
+        e.events()
+            .publish((symbol_short!("init"),), admin.clone());
+
+        Ok(())
+    }
+
+    // --------------------------------------------------------
+    // Admin helper
+    // --------------------------------------------------------
+    fn require_admin(e: &Env) -> Result<Address, ContractError> {
+        if !e.storage().instance().has(&INITIALIZED) {
+            return Err(ContractError::NotInitialized);
+        }
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        admin.require_auth();
+        Ok(admin)
+    }
+
+    // --------------------------------------------------------
+    // Employee Management
+    // --------------------------------------------------------
+
+    /// Register a new employee. Only the admin can call this.
+    pub fn register_employee(
+        e: Env,
+        wallet: Address,
+        salary: u128,
+    ) -> Result<u128, ContractError> {
+        Self::require_admin(&e)?;
+
+        if salary == 0 {
+            return Err(ContractError::InvalidAmount);
+        }
+
         let mut wallet_map: Map<Address, u128> = e
             .storage()
             .instance()
@@ -35,7 +119,7 @@ impl EarlyWageContract {
             .unwrap_or(Map::new(&e));
 
         if wallet_map.contains_key(wallet.clone()) {
-            panic!("Wallet already registered");
+            return Err(ContractError::AlreadyRegistered);
         }
 
         let mut emp_id: u128 = e.storage().instance().get(&EMP_COUNT).unwrap_or(0);
@@ -55,100 +139,185 @@ impl EarlyWageContract {
                 rem_salary: salary,
             },
         );
-        wallet_map.set(wallet, emp_id);
+        wallet_map.set(wallet.clone(), emp_id);
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
         e.storage().instance().set(&WALLET_TO_ID, &wallet_map);
         e.storage().instance().set(&EMP_COUNT, &emp_id);
+
+        e.events()
+            .publish((symbol_short!("emp_reg"),), (emp_id, wallet));
+
+        Ok(emp_id)
     }
 
-    pub fn deposit_to_vault(e: Env, from: Address, amount: i128, token: Address) {
+    // --------------------------------------------------------
+    // Vault / Deposit
+    // --------------------------------------------------------
+
+    /// Deposit tokens into the contract vault. The caller must
+    /// authorize the transfer.
+    pub fn deposit_to_vault(
+        e: Env,
+        from: Address,
+        amount: i128,
+        token: Address,
+    ) -> Result<(), ContractError> {
         from.require_auth();
+
+        if amount <= 0 {
+            return Err(ContractError::InvalidAmount);
+        }
 
         let client = token::Client::new(&e, &token);
         client.transfer(&from, &e.current_contract_address(), &amount);
+
+        e.events()
+            .publish((symbol_short!("deposit"),), (from, amount));
+
+        Ok(())
     }
 
-    pub fn request_advance(e: &Env, emp_id: u128, amount: i128, token: Address) {
+    // --------------------------------------------------------
+    // Advance Requests
+    // --------------------------------------------------------
+
+    /// Request an early wage advance. Only the employee whose
+    /// wallet is registered for the given `emp_id` can call this.
+    /// A 1.25 % processing fee is deducted automatically.
+    pub fn request_advance(
+        e: Env,
+        emp_id: u128,
+        amount: i128,
+        token: Address,
+    ) -> Result<i128, ContractError> {
+        if !e.storage().instance().has(&INITIALIZED) {
+            return Err(ContractError::NotInitialized);
+        }
+
         if amount <= 0 {
-            panic!("Amount must be positive");
+            return Err(ContractError::InvalidAmount);
         }
 
         let mut emp_map: Map<u128, EmployeeDetails> = e
             .storage()
             .instance()
             .get(&EMP_DETAILS)
-            .unwrap_or(Map::new(e));
+            .unwrap_or(Map::new(&e));
 
-        let mut emp = emp_map.get(emp_id).unwrap();
+        let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
+
+        // ---- Authorization: only the employee can request their own advance ----
+        emp.wallet.require_auth();
 
         if amount as u128 >= emp.rem_salary {
-            panic!("Requested amount exceeded remaining salary");
+            return Err(ContractError::ExceedsRemainingSalary);
         }
 
-        let fee = amount * 125 / 10000;
+        let fee = amount * 125 / 10000; // 1.25 %
         let final_amount = amount - fee;
 
-        let client = token::Client::new(e, &token);
-
+        let client = token::Client::new(&e, &token);
         client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
 
         emp.rem_salary -= amount as u128;
-        emp_map.set(emp_id, emp);
+        emp_map.set(emp_id, emp.clone());
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        e.events()
+            .publish((symbol_short!("advance"),), (emp_id, final_amount));
+
+        Ok(final_amount)
     }
 
-    pub fn vault_balance(e: Env, token: Address) -> i128 {
-        let client = token::Client::new(&e, &token);
-        client.balance(&e.current_contract_address())
-    }
+    // --------------------------------------------------------
+    // Salary Release
+    // --------------------------------------------------------
 
-    pub fn get_emp_details(e: Env, emp_id: u128) -> EmployeeDetails {
-        let emp_map: Map<u128, EmployeeDetails> = e
-            .storage()
-            .instance()
-            .get(&EMP_DETAILS)
-            .unwrap_or(Map::new(&e));
-        emp_map.get(emp_id).unwrap()
-    }
+    /// Release the remaining salary to an employee and reset
+    /// their balance for the next pay cycle. Admin only.
+    pub fn release_remaining_salary(
+        e: Env,
+        emp_id: u128,
+        token: Address,
+        salary: u128,
+    ) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
 
-    pub fn release_remaining_salary(e: Env, emp_id: u128, token: Address, salary: u128) {
         let mut emp_map: Map<u128, EmployeeDetails> = e
             .storage()
             .instance()
             .get(&EMP_DETAILS)
             .unwrap_or(Map::new(&e));
 
-        let mut emp = emp_map.get(emp_id).unwrap();
+        let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
 
         if emp.rem_salary == 0 {
-            panic!("No remaining salary to release");
+            return Err(ContractError::NoRemainingSalary);
         }
 
         let client = token::Client::new(&e, &token);
-
         client.transfer(
             &e.current_contract_address(),
             &emp.wallet,
             &(emp.rem_salary as i128),
         );
 
+        e.events().publish(
+            (symbol_short!("release"),),
+            (emp_id, emp.rem_salary),
+        );
+
         emp.rem_salary = salary;
         emp_map.set(emp_id, emp);
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        Ok(())
     }
 
-    pub fn get_remaining_salary(e: Env, emp_id: u128) -> u128 {
+    // --------------------------------------------------------
+    // Read-only Queries
+    // --------------------------------------------------------
+
+    /// Return the contract vault's token balance.
+    pub fn vault_balance(e: Env, token: Address) -> i128 {
+        let client = token::Client::new(&e, &token);
+        client.balance(&e.current_contract_address())
+    }
+
+    /// Return an employee's full details.
+    pub fn get_emp_details(e: Env, emp_id: u128) -> Result<EmployeeDetails, ContractError> {
         let emp_map: Map<u128, EmployeeDetails> = e
             .storage()
             .instance()
             .get(&EMP_DETAILS)
             .unwrap_or(Map::new(&e));
+        emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)
+    }
 
-        let emp = emp_map.get(emp_id).unwrap();
+    /// Return an employee's remaining salary for the current cycle.
+    pub fn get_remaining_salary(e: Env, emp_id: u128) -> Result<u128, ContractError> {
+        let emp_map: Map<u128, EmployeeDetails> = e
+            .storage()
+            .instance()
+            .get(&EMP_DETAILS)
+            .unwrap_or(Map::new(&e));
+        let emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
+        Ok(emp.rem_salary)
+    }
 
-        emp.rem_salary
+    /// Return the admin address (read-only).
+    pub fn get_admin(e: Env) -> Result<Address, ContractError> {
+        if !e.storage().instance().has(&INITIALIZED) {
+            return Err(ContractError::NotInitialized);
+        }
+        Ok(e.storage().instance().get(&ADMIN).unwrap())
+    }
+
+    /// Return total employee count.
+    pub fn get_employee_count(e: Env) -> u128 {
+        e.storage().instance().get(&EMP_COUNT).unwrap_or(0)
     }
 }

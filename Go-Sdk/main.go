@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/stellar/go/clients/horizonclient"
@@ -14,27 +16,99 @@ import (
 	"github.com/stellar/go/txnbuild"
 )
 
-const sourceSecret = "SBACJ6NGHW6NQZ47KE7IFF4Z5VWT4SDS3MXTDID6VV5Q2YQ2DPPXNTWU"
+// stellarAddressRegex validates a Stellar public key (G + 55 uppercase base32 chars).
+var stellarAddressRegex = regexp.MustCompile(`^G[A-Z2-7]{55}$`)
 
+// getSourceSecret reads the signing key from the SOURCE_SECRET environment
+// variable.  This prevents accidental secret leakage in version control.
+func getSourceSecret() string {
+	secret := os.Getenv("SOURCE_SECRET")
+	if secret == "" {
+		log.Fatal("FATAL: SOURCE_SECRET environment variable is not set. " +
+			"Export it before starting the server:\n" +
+			"  export SOURCE_SECRET=S...\n")
+	}
+	return secret
+}
+
+// ---------- Request / Response types ----------
+
+// TransferRequest represents the JSON body for /api/send.
 type TransferRequest struct {
 	Recipient string `json:"recipient"`
 	Amount    string `json:"amount"`
 }
 
-// CORS middleware
-// CORS middleware
+// APIError is a structured JSON error response.
+type APIError struct {
+	Error   string `json:"error"`
+	Code    string `json:"code,omitempty"`
+	Details string `json:"details,omitempty"`
+}
+
+// ---------- Validation helpers ----------
+
+// validateStellarAddress returns an error string if addr is not a valid
+// Stellar public key (ed25519).
+func validateStellarAddress(addr string) string {
+	if addr == "" {
+		return "recipient address is required"
+	}
+	if !strings.HasPrefix(addr, "G") {
+		return "recipient address must start with 'G'"
+	}
+	if len(addr) != 56 {
+		return fmt.Sprintf("recipient address must be 56 characters (got %d)", len(addr))
+	}
+	if !stellarAddressRegex.MatchString(addr) {
+		return "recipient address contains invalid characters (expected base32)"
+	}
+	return ""
+}
+
+// validateAmount returns an error string if amount is not a positive,
+// finite decimal number within a sane range.
+func validateAmount(raw string) string {
+	if raw == "" {
+		return "amount is required"
+	}
+	val, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return "amount must be a valid number"
+	}
+	if val <= 0 {
+		return "amount must be greater than zero"
+	}
+	if val > 1_000_000_000 {
+		return "amount exceeds the maximum allowed (1,000,000,000)"
+	}
+	return ""
+}
+
+// ---------- JSON helpers ----------
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, APIError{Error: msg, Code: code})
+}
+
+// ---------- CORS middleware ----------
+
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get allowed origins from environment variable
 		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 		if allowedOrigins == "" {
-			allowedOrigins = "http://localhost:3000" // Default for local react dev
+			allowedOrigins = "http://localhost:3000,http://localhost:5173"
 		}
 
 		origin := r.Header.Get("Origin")
 		allowOrigin := ""
 
-		// Check if the request origin is allowed
 		for _, o := range strings.Split(allowedOrigins, ",") {
 			if strings.TrimSpace(o) == origin {
 				allowOrigin = origin
@@ -42,16 +116,14 @@ func enableCORS(next http.Handler) http.Handler {
 			}
 		}
 
-		// If origin is allowed, set the header
 		if allowOrigin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 		}
-		
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
-		// Handle preflight OPTIONS request
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -61,30 +133,45 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
+// ---------- Handlers ----------
+
 func sendLumens(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only POST is accepted")
+		return
+	}
+
 	var req TransferRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "request body must be valid JSON")
 		return
 	}
 
-	if req.Recipient == "" || req.Amount == "" {
-		http.Error(w, "Missing recipient or amount", http.StatusBadRequest)
+	// --- Input validation ---
+	if msg := validateStellarAddress(req.Recipient); msg != "" {
+		writeError(w, http.StatusBadRequest, "INVALID_RECIPIENT", msg)
+		return
+	}
+	if msg := validateAmount(req.Amount); msg != "" {
+		writeError(w, http.StatusBadRequest, "INVALID_AMOUNT", msg)
 		return
 	}
 
+	// --- Build & submit transaction ---
+	sourceSecret := getSourceSecret()
 	sourceKP, err := keypair.ParseFull(sourceSecret)
 	if err != nil {
-		http.Error(w, "Invalid source key", http.StatusInternalServerError)
+		log.Printf("ERROR: invalid source key: %v", err)
+		writeError(w, http.StatusInternalServerError, "CONFIG_ERROR", "server signing key is misconfigured")
 		return
 	}
-	sourceAddress := sourceKP.Address()
-	client := horizonclient.DefaultTestNetClient
 
-	ar := horizonclient.AccountRequest{AccountID: sourceAddress}
+	client := horizonclient.DefaultTestNetClient
+	ar := horizonclient.AccountRequest{AccountID: sourceKP.Address()}
 	sourceAccount, err := client.AccountDetail(ar)
 	if err != nil {
-		http.Error(w, "Cannot load source account", http.StatusInternalServerError)
+		log.Printf("ERROR: cannot load source account: %v", err)
+		writeError(w, http.StatusInternalServerError, "NETWORK_ERROR", "cannot load source account from Stellar network")
 		return
 	}
 
@@ -94,59 +181,65 @@ func sendLumens(w http.ResponseWriter, r *http.Request) {
 		Asset:       txnbuild.NativeAsset{},
 	}
 
-	timeout := txnbuild.NewTimeout(300)
-
 	txParams := txnbuild.TransactionParams{
 		SourceAccount:        &sourceAccount,
 		IncrementSequenceNum: true,
 		BaseFee:              txnbuild.MinBaseFee,
 		Operations:           []txnbuild.Operation{&paymentOp},
-		Preconditions:        txnbuild.Preconditions{TimeBounds: timeout},
+		Preconditions:        txnbuild.Preconditions{TimeBounds: txnbuild.NewTimeout(300)},
 	}
+
 	tx, err := txnbuild.NewTransaction(txParams)
 	if err != nil {
-		http.Error(w, "Transaction build failed", http.StatusInternalServerError)
+		log.Printf("ERROR: transaction build failed: %v", err)
+		writeError(w, http.StatusInternalServerError, "TX_BUILD_ERROR", "failed to build transaction")
 		return
 	}
 
 	signedTx, err := tx.Sign(network.TestNetworkPassphrase, sourceKP)
 	if err != nil {
-		http.Error(w, "Signing failed", http.StatusInternalServerError)
+		log.Printf("ERROR: transaction signing failed: %v", err)
+		writeError(w, http.StatusInternalServerError, "TX_SIGN_ERROR", "failed to sign transaction")
 		return
 	}
 
 	resp, err := client.SubmitTransaction(signedTx)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Transaction failed: %v", err), http.StatusInternalServerError)
+		log.Printf("ERROR: transaction submission failed: %v", err)
+		writeError(w, http.StatusBadGateway, "TX_SUBMIT_ERROR",
+			fmt.Sprintf("transaction failed on Stellar network: %v", err))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"message": "Transaction successful",
 		"hash":    resp.Hash,
 	})
 }
 
-// Health check endpoint
 func healthCheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "ok",
 		"network": "testnet",
 	})
 }
 
+// ---------- Main ----------
+
 func main() {
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("/api/send", sendLumens)
 	mux.HandleFunc("/api/health", healthCheck)
 
-	fmt.Println("🚀 StellarPay API running at http://localhost:8080")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("🚀 StellarPay API running at http://localhost:%s\n", port)
 	fmt.Println("📡 Endpoints:")
 	fmt.Println("   POST /api/send   - Send XLM to recipient")
 	fmt.Println("   GET  /api/health - Health check")
 
-	log.Fatal(http.ListenAndServe(":8080", enableCORS(mux)))
+	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }
