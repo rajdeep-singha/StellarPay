@@ -17,6 +17,12 @@ panic = "abort"
 codegen-units = 1
 lto = true
 
+[profile.release.package.early-wage]
+opt-level = "z"
+
+[profile.release.build-override]
+opt-level = 0
+
 # For more information about this profile see https://soroban.stellar.org/docs/basic-tutorials/logging#cargotoml-profile
 [profile.release-with-logs]
 inherits = "release"
