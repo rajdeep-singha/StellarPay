@@ -19,24 +19,14 @@ import (
 // stellarAddressRegex validates a Stellar public key (G + 55 uppercase base32 chars).
 var stellarAddressRegex = regexp.MustCompile(`^G[A-Z2-7]{55}$`)
 
-// getSourceSecret reads the signing key from the SOURCE_SECRET environment
-// variable.  This prevents accidental secret leakage in version control.
-func getSourceSecret() string {
-	secret := os.Getenv("SOURCE_SECRET")
-	if secret == "" {
-		log.Fatal("FATAL: SOURCE_SECRET environment variable is not set. " +
-			"Export it before starting the server:\n" +
-			"  export SOURCE_SECRET=S...\n")
-	}
-	return secret
-}
-
 // ---------- Request / Response types ----------
 
-// TransferRequest represents the JSON body for /api/send.
+// TransferRequest supports multi-asset transfers
 type TransferRequest struct {
-	Recipient string `json:"recipient"`
-	Amount    string `json:"amount"`
+	Recipient   string `json:"recipient"`
+	Amount      string `json:"amount"`
+	AssetCode   string `json:"asset_code"`   // "XLM", "USDC", etc. Empty = native XLM
+	AssetIssuer string `json:"asset_issuer"` // Required for non-native assets
 }
 
 // APIError is a structured JSON error response.
@@ -48,8 +38,6 @@ type APIError struct {
 
 // ---------- Validation helpers ----------
 
-// validateStellarAddress returns an error string if addr is not a valid
-// Stellar public key (ed25519).
 func validateStellarAddress(addr string) string {
 	if addr == "" {
 		return "recipient address is required"
@@ -66,8 +54,6 @@ func validateStellarAddress(addr string) string {
 	return ""
 }
 
-// validateAmount returns an error string if amount is not a positive,
-// finite decimal number within a sane range.
 func validateAmount(raw string) string {
 	if raw == "" {
 		return "amount is required"
@@ -103,7 +89,7 @@ func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 		if allowedOrigins == "" {
-			allowedOrigins = "http://localhost:3000,http://localhost:5173"
+			allowedOrigins = "http://localhost:5173,http://localhost:3000"
 		}
 
 		origin := r.Header.Get("Origin")
@@ -121,7 +107,7 @@ func enableCORS(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
 		if r.Method == "OPTIONS" {
@@ -133,11 +119,38 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
+// ---------- API key auth middleware ----------
+
+func apiKeyAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		apiKey := os.Getenv("API_KEY")
+		if apiKey == "" {
+			// No API key configured — skip auth in dev
+			next(w, r)
+			return
+		}
+		provided := r.Header.Get("X-API-Key")
+		if provided != apiKey {
+			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid or missing API key")
+			return
+		}
+		next(w, r)
+	}
+}
+
 // ---------- Handlers ----------
 
-func sendLumens(w http.ResponseWriter, r *http.Request) {
+// sendAsset handles both XLM and custom asset transfers
+func sendAsset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "only POST is accepted")
+		return
+	}
+
+	// Load secret from env — never hardcode
+	sourceSecret := os.Getenv("STELLAR_SOURCE_SECRET")
+	if sourceSecret == "" {
+		writeError(w, http.StatusInternalServerError, "CONFIG_ERROR", "server signing key is not configured")
 		return
 	}
 
@@ -157,8 +170,21 @@ func sendLumens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Build & submit transaction ---
-	sourceSecret := getSourceSecret()
+	// Determine asset type
+	var asset txnbuild.Asset
+	if req.AssetCode == "" || req.AssetCode == "XLM" {
+		asset = txnbuild.NativeAsset{}
+	} else {
+		if req.AssetIssuer == "" {
+			writeError(w, http.StatusBadRequest, "INVALID_ASSET", "asset_issuer required for non-native assets")
+			return
+		}
+		asset = txnbuild.CreditAsset{
+			Code:   req.AssetCode,
+			Issuer: req.AssetIssuer,
+		}
+	}
+
 	sourceKP, err := keypair.ParseFull(sourceSecret)
 	if err != nil {
 		log.Printf("ERROR: invalid source key: %v", err)
@@ -178,7 +204,7 @@ func sendLumens(w http.ResponseWriter, r *http.Request) {
 	paymentOp := txnbuild.Payment{
 		Destination: req.Recipient,
 		Amount:      req.Amount,
-		Asset:       txnbuild.NativeAsset{},
+		Asset:       asset,
 	}
 
 	txParams := txnbuild.TransactionParams{
@@ -212,11 +238,56 @@ func sendLumens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"message": "Transaction successful",
-		"hash":    resp.Hash,
+		"message":   "Transaction successful",
+		"hash":      resp.Hash,
+		"asset":     req.AssetCode,
+		"amount":    req.Amount,
+		"recipient": req.Recipient,
 	})
 }
 
+// getAccountBalances fetches all balances for an account via Horizon
+func getAccountBalances(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "account_id query param required")
+		return
+	}
+
+	client := horizonclient.DefaultTestNetClient
+	ar := horizonclient.AccountRequest{AccountID: accountID}
+	account, err := client.AccountDetail(ar)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "NETWORK_ERROR", fmt.Sprintf("cannot load account: %v", err))
+		return
+	}
+
+	type Balance struct {
+		AssetType   string `json:"asset_type"`
+		AssetCode   string `json:"asset_code,omitempty"`
+		AssetIssuer string `json:"asset_issuer,omitempty"`
+		Balance     string `json:"balance"`
+		Limit       string `json:"limit,omitempty"`
+	}
+
+	var balances []Balance
+	for _, b := range account.Balances {
+		balances = append(balances, Balance{
+			AssetType:   b.Type,
+			AssetCode:   b.Code,
+			AssetIssuer: b.Issuer,
+			Balance:     b.Balance,
+			Limit:       b.Limit,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"account_id": accountID,
+		"balances":   balances,
+	})
+}
+
+// Health check
 func healthCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "ok",
@@ -227,8 +298,15 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 // ---------- Main ----------
 
 func main() {
+	// Validate required env vars on startup
+	if os.Getenv("STELLAR_SOURCE_SECRET") == "" {
+		log.Fatal("❌ STELLAR_SOURCE_SECRET env var is required. Set it in your .env file.")
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/send", sendLumens)
+
+	mux.HandleFunc("/api/send", apiKeyAuth(sendAsset))   // protected
+	mux.HandleFunc("/api/balances", getAccountBalances)   // public read-only
 	mux.HandleFunc("/api/health", healthCheck)
 
 	port := os.Getenv("PORT")
@@ -238,8 +316,9 @@ func main() {
 
 	fmt.Printf("🚀 StellarPay API running at http://localhost:%s\n", port)
 	fmt.Println("📡 Endpoints:")
-	fmt.Println("   POST /api/send   - Send XLM to recipient")
-	fmt.Println("   GET  /api/health - Health check")
+	fmt.Println("   POST /api/send     - Send XLM or custom asset (requires X-API-Key header)")
+	fmt.Println("   GET  /api/balances - Get account balances")
+	fmt.Println("   GET  /api/health   - Health check")
 
 	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }

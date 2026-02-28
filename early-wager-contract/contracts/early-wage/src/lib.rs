@@ -5,7 +5,7 @@ mod test;
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, Map,
-    Symbol,
+    Symbol, Vec,
 };
 
 // ============================================================
@@ -41,6 +41,7 @@ const EMP_COUNT: Symbol = symbol_short!("EMP_COUNT");
 const EMP_DETAILS: Symbol = symbol_short!("EMP_DET");
 const WALLET_TO_ID: Symbol = symbol_short!("wal2id");
 const INITIALIZED: Symbol = symbol_short!("INIT");
+const SUPPORTED_TOKENS: Symbol = symbol_short!("SUP_TOK");
 
 // ============================================================
 // Data Types
@@ -51,6 +52,14 @@ pub struct EmployeeDetails {
     pub emp_id: u128,
     pub wallet: Address,
     pub rem_salary: u128,
+    pub salary_token: Address,
+}
+
+#[contracttype]
+pub struct TokenInfo {
+    pub address: Address,
+    pub symbol: soroban_sdk::String,
+    pub decimals: u32,
 }
 
 // ============================================================
@@ -96,6 +105,51 @@ impl EarlyWageContract {
         Ok(admin)
     }
 
+    /// Get the current admin address.
+    pub fn get_admin(e: Env) -> Result<Address, ContractError> {
+        if !e.storage().instance().has(&INITIALIZED) {
+            return Err(ContractError::NotInitialized);
+        }
+        Ok(e.storage().instance().get(&ADMIN).unwrap())
+    }
+
+    // --------------------------------------------------------
+    // Token Management (admin only)
+    // --------------------------------------------------------
+
+    /// Add a supported token — only stored admin can call this.
+    pub fn add_supported_token(
+        e: Env,
+        token_address: Address,
+        symbol: soroban_sdk::String,
+        decimals: u32,
+    ) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
+
+        let mut tokens: Vec<TokenInfo> = e
+            .storage()
+            .instance()
+            .get(&SUPPORTED_TOKENS)
+            .unwrap_or(Vec::new(&e));
+
+        tokens.push_back(TokenInfo {
+            address: token_address,
+            symbol,
+            decimals,
+        });
+
+        e.storage().instance().set(&SUPPORTED_TOKENS, &tokens);
+        Ok(())
+    }
+
+    /// Get all supported tokens (public read).
+    pub fn get_supported_tokens(e: Env) -> Vec<TokenInfo> {
+        e.storage()
+            .instance()
+            .get(&SUPPORTED_TOKENS)
+            .unwrap_or(Vec::new(&e))
+    }
+
     // --------------------------------------------------------
     // Employee Management
     // --------------------------------------------------------
@@ -105,6 +159,7 @@ impl EarlyWageContract {
         e: Env,
         wallet: Address,
         salary: u128,
+        salary_token: Address,
     ) -> Result<u128, ContractError> {
         Self::require_admin(&e)?;
 
@@ -137,6 +192,7 @@ impl EarlyWageContract {
                 emp_id,
                 wallet: wallet.clone(),
                 rem_salary: salary,
+                salary_token,
             },
         );
         wallet_map.set(wallet.clone(), emp_id);
@@ -170,12 +226,28 @@ impl EarlyWageContract {
         }
 
         let client = token::Client::new(&e, &token);
+        // Check user balance before cross-contract deposit
+        if client.balance(&from) < amount {
+            return Err(ContractError::InvalidAmount);
+        }
         client.transfer(&from, &e.current_contract_address(), &amount);
 
         e.events()
             .publish((symbol_short!("deposit"),), (from, amount));
 
         Ok(())
+    }
+
+    /// Get vault balances for multiple tokens.
+    pub fn vault_balances_multi(e: Env, tokens: Vec<Address>) -> Map<Address, i128> {
+        let mut balances: Map<Address, i128> = Map::new(&e);
+        for i in 0..tokens.len() {
+            let token_addr = tokens.get(i).unwrap();
+            let client = token::Client::new(&e, &token_addr);
+            let balance = client.balance(&e.current_contract_address());
+            balances.set(token_addr, balance);
+        }
+        balances
     }
 
     // --------------------------------------------------------
@@ -207,7 +279,7 @@ impl EarlyWageContract {
 
         let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
 
-        // ---- Authorization: only the employee can request their own advance ----
+        // Authorization: only the employee can request their own advance
         emp.wallet.require_auth();
 
         if amount as u128 >= emp.rem_salary {
@@ -297,6 +369,16 @@ impl EarlyWageContract {
         emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)
     }
 
+    /// Get employee ID by wallet address.
+    pub fn get_emp_id_by_wallet(e: Env, wallet: Address) -> u128 {
+        let wallet_map: Map<Address, u128> = e
+            .storage()
+            .instance()
+            .get(&WALLET_TO_ID)
+            .unwrap_or(Map::new(&e));
+        wallet_map.get(wallet).unwrap_or(0)
+    }
+
     /// Return an employee's remaining salary for the current cycle.
     pub fn get_remaining_salary(e: Env, emp_id: u128) -> Result<u128, ContractError> {
         let emp_map: Map<u128, EmployeeDetails> = e
@@ -306,14 +388,6 @@ impl EarlyWageContract {
             .unwrap_or(Map::new(&e));
         let emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
         Ok(emp.rem_salary)
-    }
-
-    /// Return the admin address (read-only).
-    pub fn get_admin(e: Env) -> Result<Address, ContractError> {
-        if !e.storage().instance().has(&INITIALIZED) {
-            return Err(ContractError::NotInitialized);
-        }
-        Ok(e.storage().instance().get(&ADMIN).unwrap())
     }
 
     /// Return total employee count.

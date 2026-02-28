@@ -3,199 +3,260 @@ import {
   BASE_FEE,
   Contract,
   nativeToScVal,
+  scValToNative,
   Networks,
   rpc,
   TransactionBuilder,
   xdr,
 } from "@stellar/stellar-sdk";
 
+import { signTransaction } from "@stellar/freighter-api";
+
 // Contract addresses - Update these with your deployed contract addresses
-const CONTRACT_ADDRESS_TOKEN = "CDB5EWYMHLVBUCF34JKI6V53DLV6IKZPABNTPGXRR7L5XUVDBKE2ZSA3";
-const CONTRACT_ADDRESS_WAGE = "CAHEHF7DFQKQBBG6SRQF6U3P6WWDIIP6UAZXEPZAXMXYYYLIS7L7MJTN";
+const CONTRACT_ADDRESS_TOKEN = "CDHRNIGP6FT4NVRRGIDSAAOKUQMQYAS7LX6BWLX65SEAWJAGTF6YVZ7N";// old one CDB5EWYMHLVBUCF34JKI6V53DLV6IKZPABNTPGXRR7L5XUVDBKE2ZSA3
+
+const CONTRACT_ADDRESS_WAGE = "CDCLWMLTRGRKLVIGMZTBIRRXF2KEH5UAQBSMCL3RDGTSZRV7PDVY2O5C";//CAHEHF7DFQKQBBG6SRQF6U3P6WWDIIP6UAZXEPZAXMXYYYLIS7L7MJTN old contract address 
+
 const RPC_URL = "https://soroban-testnet.stellar.org";
+
+if (!CONTRACT_ADDRESS_TOKEN || !CONTRACT_ADDRESS_WAGE) {
+  console.warn("⚠️ Contract addresses not set in .env — soroban calls will fail.");
+}
+
+// ============================================
+// SUPPORTED TOKENS (Stellar Testnet)
+// ============================================
+export const SUPPORTED_TOKENS = [
+  {
+    symbol: "XLM",
+    name: "Stellar Lumens",
+    address: "native",
+    decimals: 7,
+    icon: "⭐",
+    isNative: true,
+  },
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    decimals: 7,
+    icon: "💵",
+    isNative: false,
+  },
+  {
+    symbol: "EURC",
+    name: "Euro Coin",
+    address: "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP",
+    decimals: 7,
+    icon: "💶",
+    isNative: false,
+  },
+];
+
+// Fetch live exchange rates relative to USD
+export async function fetchExchangeRates() {
+  try {
+    // Fallback mock rates — replace with real price feed in production
+    return {
+      XLM: 0.11,
+      USDC: 1.0,
+      EURC: 1.08,
+    };
+  } catch {
+    return { XLM: 0.11, USDC: 1.0, EURC: 1.08 };
+  }
+}
 
 // Initialize Soroban RPC client
 const server = new rpc.Server(RPC_URL);
 
-// Helper functions for converting values to Soroban ScVal
-export const addressToScVal = (account) => {
-  return new Address(account).toScVal();
-};
+// ============================================
+// ScVal HELPERS
+// ============================================
+export const addressToScVal = (account) => new Address(account).toScVal();
+export const numberToU128 = (num) => nativeToScVal(num, { type: "u128" });
+export const numberToI128 = (num) => nativeToScVal(num, { type: "i128" });
 
-export const stringToScVal = (str) => {
-  return nativeToScVal(str);
-};
-
-export const numberToU128 = (num) => {
-  return nativeToScVal(num, { type: "u128" });
-};
-
-export const numberToI128 = (num) => {
-  return nativeToScVal(num, { type: "i128" });
-};
-
-// Get transaction params
-const getTransactionParams = (publicKey) => ({
-  fee: BASE_FEE,
-  networkPassphrase: Networks.TESTNET,
-});
-
-// Build and prepare a contract call transaction
+// ============================================
+// CORE TRANSACTION HELPERS
+// ============================================
 async function buildContractCall(publicKey, contractId, functionName, args = []) {
-  try {
-    const account = await server.getAccount(publicKey);
-    const contract = new Contract(contractId);
+  const account = await server.getAccount(publicKey);
+  const contract = new Contract(contractId);
+  const operation = contract.call(functionName, ...args);
 
-    const operation = contract.call(functionName, ...args);
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(operation)
+    .setTimeout(300)
+    .build();
 
-    const transaction = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(operation)
-      .setTimeout(300)
-      .build();
-
-    // Simulate the transaction to get the prepared transaction
-    const preparedTx = await server.prepareTransaction(transaction);
-    return preparedTx;
-  } catch (error) {
-    console.error(`Error building contract call for ${functionName}:`, error);
-    throw error;
-  }
+  return server.prepareTransaction(transaction);
 }
 
-// Sign transaction with Freighter
 async function signWithFreighter(preparedTx) {
-  if (!window.freighterApi) {
-    throw new Error("Freighter wallet not found");
-  }
+  if (!window.freighterApi) throw new Error("Freighter wallet not found");
 
   const txXdr = preparedTx.toXDR();
-  const signedTxXdr = await window.freighterApi.signTransaction(txXdr, {
+  const signedResponse = await signTransaction(txXdr, {
     network: "TESTNET",
     networkPassphrase: Networks.TESTNET,
   });
 
-  return TransactionBuilder.fromXDR(signedTxXdr, Networks.TESTNET);
+  if (!signedResponse) {
+    throw new Error("Transaction signature was rejected or failed.");
+  }
+
+  // The NPM package might return an object { signedTxXdr: "..." } or a raw string
+  const finalXdr = typeof signedResponse === 'object' ? signedResponse.signedTxXdr || signedResponse.txXdr : signedResponse;
+
+  if (!finalXdr || typeof finalXdr !== 'string') {
+    throw new Error("Invalid response format from Freighter SDK: Missing XDR string.");
+  }
+
+  return TransactionBuilder.fromXDR(finalXdr, Networks.TESTNET);
 }
 
-// Submit signed transaction
 async function submitTransaction(signedTx) {
+  const response = await server.sendTransaction(signedTx);
+
+  if (response.status === "PENDING") {
+    let txResponse = await server.getTransaction(response.hash);
+    while (txResponse.status === "NOT_FOUND") {
+      await new Promise((r) => setTimeout(r, 1000));
+      txResponse = await server.getTransaction(response.hash);
+    }
+    if (txResponse.status === "SUCCESS") {
+      return { success: true, hash: response.hash, result: txResponse.resultXdr };
+    }
+    throw new Error(`Transaction failed: ${txResponse.status}`);
+  } else if (response.status === "ERROR") {
+    throw new Error(`Transaction error: ${response.errorResultXdr}`);
+  }
+
+  return { success: true, hash: response.hash };
+}
+
+// ============================================
+// MULTI-TOKEN WALLET BALANCES
+// ============================================
+
+/**
+ * Fetch all token balances for a wallet using Horizon API
+ */
+export async function getWalletTokenBalances(publicKey) {
   try {
-    const response = await server.sendTransaction(signedTx);
+    const horizonUrl = `https://horizon-testnet.stellar.org/accounts/${publicKey}`;
+    const response = await fetch(horizonUrl);
 
-    if (response.status === "PENDING") {
-      let txResponse = await server.getTransaction(response.hash);
+    if (!response.ok) throw new Error("Failed to fetch account");
 
-      while (txResponse.status === "NOT_FOUND") {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        txResponse = await server.getTransaction(response.hash);
-      }
+    const accountData = await response.json();
+    const balances = [];
 
-      if (txResponse.status === "SUCCESS") {
-        return {
-          success: true,
-          hash: response.hash,
-          result: txResponse.resultXdr,
-        };
+    for (const balance of accountData.balances) {
+      if (balance.asset_type === "native") {
+        balances.push({
+          symbol: "XLM",
+          name: "Stellar Lumens",
+          address: "native",
+          balance: parseFloat(balance.balance),
+          decimals: 7,
+          icon: "⭐",
+          isNative: true,
+        });
       } else {
-        throw new Error(`Transaction failed: ${txResponse.status}`);
+        const knownToken = SUPPORTED_TOKENS.find(
+          (t) => t.address === balance.asset_issuer
+        );
+        balances.push({
+          symbol: balance.asset_code,
+          name: knownToken?.name || balance.asset_code,
+          address: balance.asset_issuer,
+          balance: parseFloat(balance.balance),
+          decimals: 7,
+          icon: knownToken?.icon || "🪙",
+          isNative: false,
+          limit: balance.limit,
+        });
       }
-    } else if (response.status === "ERROR") {
-      throw new Error(`Transaction error: ${response.errorResultXdr}`);
     }
 
-    return { success: true, hash: response.hash };
+    return balances;
   } catch (error) {
-    console.error("Error submitting transaction:", error);
-    throw error;
+    console.error("Error fetching balances:", error);
+    return [
+      {
+        symbol: "XLM",
+        name: "Stellar Lumens",
+        address: "native",
+        balance: 0,
+        decimals: 7,
+        icon: "⭐",
+        isNative: true,
+      },
+    ];
   }
 }
 
 // ============================================
-// EARLY WAGE CONTRACT FUNCTIONS
+// EMPLOYEE CONTRACT FUNCTIONS
 // ============================================
 
-/**
- * Register a new employee
- * @param {string} publicKey - The caller's public key
- * @param {string} walletAddress - Employee's wallet address
- * @param {number} salary - Monthly salary amount
- */
-export async function registerEmployee(publicKey, walletAddress, salary) {
-  const args = [addressToScVal(walletAddress), numberToU128(salary)];
-
-  const preparedTx = await buildContractCall(
-    publicKey,
-    CONTRACT_ADDRESS_WAGE,
-    "register_employee",
-    args
-  );
-
+export async function registerEmployee(publicKey, walletAddress, salary, salaryToken = CONTRACT_ADDRESS_TOKEN) {
+  const args = [
+    addressToScVal(walletAddress),
+    numberToU128(salary),
+    addressToScVal(salaryToken),
+  ];
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "register_employee", args);
   const signedTx = await signWithFreighter(preparedTx);
   return submitTransaction(signedTx);
 }
 
-/**
- * Deposit funds to the vault
- * @param {string} publicKey - The depositor's public key
- * @param {number} amount - Amount to deposit
- * @param {string} tokenAddress - Token contract address (optional)
- */
 export async function depositToVault(publicKey, amount, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
+  // Pre-flight check: Ensure the depositor has enough token balance
+  const balance = await getTokenBalance(publicKey, tokenAddress);
+  if (balance < amount) {
+    throw new Error(`Insufficient token balance! You only have ${balance} tokens.`);
+  }
+
   const args = [
     addressToScVal(publicKey),
     numberToI128(amount),
     addressToScVal(tokenAddress),
   ];
-
-  const preparedTx = await buildContractCall(
-    publicKey,
-    CONTRACT_ADDRESS_WAGE,
-    "deposit_to_vault",
-    args
-  );
-
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "deposit_to_vault", args);
   const signedTx = await signWithFreighter(preparedTx);
   return submitTransaction(signedTx);
 }
 
-/**
- * Request a salary advance
- * @param {string} publicKey - The caller's public key
- * @param {number} empId - Employee ID
- * @param {number} amount - Amount to request
- * @param {string} tokenAddress - Token contract address (optional)
- */
 export async function requestAdvance(publicKey, empId, amount, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
+  // Pre-flight check: Ensure the contract vault has enough balance to pay out
+  const vaultBalance = await getVaultBalance(publicKey, tokenAddress);
+  const fee = amount * 0.0125;
+  const netAmount = amount - fee;
+
+  if (vaultBalance < netAmount) {
+    throw new Error(`Contract has insufficient funds to pay this advance right now.`);
+  }
+
   const args = [
     numberToU128(empId),
     numberToI128(amount),
     addressToScVal(tokenAddress),
   ];
-
-  const preparedTx = await buildContractCall(
-    publicKey,
-    CONTRACT_ADDRESS_WAGE,
-    "request_advance",
-    args
-  );
-
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "request_advance", args);
   const signedTx = await signWithFreighter(preparedTx);
   return submitTransaction(signedTx);
 }
 
-/**
- * Get vault balance
- * @param {string} publicKey - The caller's public key
- * @param {string} tokenAddress - Token contract address (optional)
- */
 export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
   try {
     const account = await server.getAccount(publicKey);
     const contract = new Contract(CONTRACT_ADDRESS_WAGE);
-
     const operation = contract.call("vault_balance", addressToScVal(tokenAddress));
 
     const transaction = new TransactionBuilder(account, {
@@ -207,7 +268,6 @@ export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-
     if (simResult.result) {
       const resultValue = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
       return Number(resultValue.i128().lo().toString());
@@ -219,16 +279,10 @@ export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS
   }
 }
 
-/**
- * Get employee details
- * @param {string} publicKey - The caller's public key
- * @param {number} empId - Employee ID
- */
 export async function getEmployeeDetails(publicKey, empId) {
   try {
     const account = await server.getAccount(publicKey);
     const contract = new Contract(CONTRACT_ADDRESS_WAGE);
-
     const operation = contract.call("get_emp_details", numberToU128(empId));
 
     const transaction = new TransactionBuilder(account, {
@@ -240,13 +294,7 @@ export async function getEmployeeDetails(publicKey, empId) {
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-
-    if (simResult.result) {
-      // Parse the struct result
-      const resultValue = simResult.result.retval;
-      // Note: You'll need to parse the struct based on its definition
-      return resultValue;
-    }
+    if (simResult.result) return simResult.result.retval;
     return null;
   } catch (error) {
     console.error("Error getting employee details:", error);
@@ -254,16 +302,10 @@ export async function getEmployeeDetails(publicKey, empId) {
   }
 }
 
-/**
- * Get remaining salary for an employee
- * @param {string} publicKey - The caller's public key
- * @param {number} empId - Employee ID
- */
 export async function getRemainingSalary(publicKey, empId) {
   try {
     const account = await server.getAccount(publicKey);
     const contract = new Contract(CONTRACT_ADDRESS_WAGE);
-
     const operation = contract.call("get_remaining_salary", numberToU128(empId));
 
     const transaction = new TransactionBuilder(account, {
@@ -275,7 +317,6 @@ export async function getRemainingSalary(publicKey, empId) {
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-
     if (simResult.result) {
       const resultValue = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
       return Number(resultValue.u128().lo().toString());
@@ -287,37 +328,17 @@ export async function getRemainingSalary(publicKey, empId) {
   }
 }
 
-/**
- * Release remaining salary to employee
- * @param {string} publicKey - The caller's public key
- * @param {number} empId - Employee ID
- * @param {string} tokenAddress - Token contract address
- * @param {number} newSalary - New salary amount for next cycle
- */
-export async function releaseRemainingSalary(
-  publicKey,
-  empId,
-  tokenAddress = CONTRACT_ADDRESS_TOKEN,
-  newSalary
-) {
+export async function releaseRemainingSalary(publicKey, empId, tokenAddress = CONTRACT_ADDRESS_TOKEN, newSalary) {
   const args = [
     numberToU128(empId),
     addressToScVal(tokenAddress),
     numberToU128(newSalary),
   ];
-
-  const preparedTx = await buildContractCall(
-    publicKey,
-    CONTRACT_ADDRESS_WAGE,
-    "release_remaining_salary",
-    args
-  );
-
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "release_remaining_salary", args);
   const signedTx = await signWithFreighter(preparedTx);
   return submitTransaction(signedTx);
 }
 
-// Export contract addresses for reference
 export const CONTRACTS = {
   TOKEN: CONTRACT_ADDRESS_TOKEN,
   WAGE: CONTRACT_ADDRESS_WAGE,
@@ -332,6 +353,8 @@ export default {
   getEmployeeDetails,
   getRemainingSalary,
   releaseRemainingSalary,
+  getWalletTokenBalances,
+  fetchExchangeRates,
+  SUPPORTED_TOKENS,
   CONTRACTS,
 };
-
