@@ -2,7 +2,10 @@ module github.com/tanayarun/stellarpay
 
 go 1.24
 
-require github.com/stellar/go v0.0.0-20250424183418-116aa946fb47
+require (
+	github.com/joho/godotenv v1.5.1
+	github.com/stellar/go v0.0.0-20250424183418-116aa946fb47
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
