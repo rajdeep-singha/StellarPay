@@ -1,0 +1,50 @@
+import { registerEmployee } from "../services/sorobanService.js"; //getEmployeeWithWA,
+import { useCallback } from "react";
+import { useEmployeeStore } from "../store/empStore.js";
+
+//creating a custom hook to check if a user
+//is registered or not in a system
+
+export function useCheckUser() {
+    //using zustand here 
+    //to manage state
+    const setEmpData = useEmployeeStore((state) => state.setEmpData);
+    const setError = useEmployeeStore((state) => state.setError);
+    const setLoading = useEmployeeStore((state) => state.setLoading);
+
+    const checkUser = useCallback(async (address) => {
+        if (!address) {
+            return { isRegistered: false };
+        }
+
+        try {
+            setLoading(true)
+            const empData = await getEmployeeWithWA(address);
+            setEmpData({
+                empId: empData.empId,
+                salary: empData.rem_salary / 10000000,
+                email: empData.email,
+            })
+            return { isRegistered: true, empData };
+
+        } catch (error) {
+            console.error("checkUser error details:", error);
+            const isNotRegistered =
+                error.message?.includes("WasmVm") ||
+                error.message?.includes("InvalidAction") ||
+                error.message?.includes("simulation failed") ||
+                error.message?.includes("Wallet not registered");
+
+            if (!isNotRegistered) {
+                console.error("checkUser caught an unexpected bug, NOT a simple 'wallet missing' error:", error);
+            }
+
+            return { isRegistered: false };
+        }
+        finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { checkUser }
+}
