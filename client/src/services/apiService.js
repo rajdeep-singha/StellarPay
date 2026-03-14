@@ -17,6 +17,7 @@ export async function sendLumens(recipient, amount) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-API-Key": import.meta.env.VITE_API_KEY || "",
       },
       body: JSON.stringify({
         recipient,
