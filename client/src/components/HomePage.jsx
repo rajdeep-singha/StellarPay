@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletContext } from "../context/WalletContext";
 import { requestAdvance, getRemainingSalary,  CONTRACTS } from "../services/sorobanService";
 import { sendLumens } from "../services/apiService";
 import PayCycleProgress from "./PayCycleProgress";
@@ -29,7 +29,7 @@ const HomePage = () => {
     setSelectedToken,
     exchangeRates,
     loadingBalances,
-  } = useWallet();
+  } = useWalletContext();
 
 
   const employeeId = useEmployeeStore((state) => state.empId);

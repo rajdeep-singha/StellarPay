@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
 import {  registerEmployee } from "../services/sorobanService";//getEmployeeWithWA
-import useWallet from "../hooks/useWallet";
+import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
 import InputField from "./InputField";
 
 
 const RegistrationCard = ({ onSuccess }) => {
-    const { walletAddress } = useWallet();
+    const { walletAddress } = useWalletContext();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
     const isRegistered = useEmployeeStore((state) => state.isRegistered);
