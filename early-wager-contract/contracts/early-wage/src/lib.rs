@@ -317,6 +317,10 @@ impl EarlyWageContract {
     ) -> Result<(), ContractError> {
         Self::require_admin(&e)?;
 
+        if salary == 0 {
+            return Err(ContractError::InvalidAmount);
+        }
+
         let mut emp_map: Map<u128, EmployeeDetails> = e
             .storage()
             .instance()
