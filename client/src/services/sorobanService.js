@@ -344,6 +344,29 @@ export const CONTRACTS = {
   WAGE: CONTRACT_ADDRESS_WAGE,
   RPC_URL,
 };
+export async function getTransactionHistory(publicKey) {
+  try {
+    const response = await fetch(
+      `https://horizon-testnet.stellar.org/accounts/${publicKey}/operations?limit=20&order=desc`
+    );
+    if (!response.ok) throw new Error("Failed to fetch transaction history");
+
+    const data = await response.json();
+
+    return data._embedded.records.map((op) => ({
+      hash: op.transaction_hash,
+      type: op.type === "payment" ? (op.to === publicKey ? "Receive" : "Send") : op.type,
+      amount: parseFloat(op.amount || 0),
+      date: op.created_at,
+      status: "completed",
+      recipient: op.to || null,
+      fee: 0,
+    }));
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+    return [];
+  }
+}
 
 export default {
   registerEmployee,
@@ -355,6 +378,7 @@ export default {
   releaseRemainingSalary,
   getWalletTokenBalances,
   fetchExchangeRates,
+  getTransactionHistory,
   SUPPORTED_TOKENS,
   CONTRACTS,
 };

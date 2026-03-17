@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import * as freighterApi from "@stellar/freighter-api";
-import { getWalletTokenBalances, fetchExchangeRates } from "../services/sorobanService";
+import { getWalletTokenBalances, fetchExchangeRates, getTransactionHistory } from "../services/sorobanService";
 
 /**
  * Custom hook for managing Freighter wallet connection + multi-token balances
@@ -17,7 +17,7 @@ export function useWallet() {
   const [selectedToken, setSelectedToken] = useState(null);
   const [exchangeRates, setExchangeRates] = useState({});
   const [loadingBalances, setLoadingBalances] = useState(false);
-
+  const [transactions, setTransactions] = useState([]);
   // Check if Freighter is installed and if already connected
   useEffect(() => {
     let mounted = true;
@@ -66,13 +66,16 @@ export function useWallet() {
     const loadBalancesAndRates = async () => {
       setLoadingBalances(true);
       try {
-        const [balances, rates] = await Promise.all([
+        const [balances, rates , txHistory] = await Promise.all([
           getWalletTokenBalances(walletAddress),
           fetchExchangeRates(),
+          getTransactionHistory(walletAddress),
         ]);
 
         setTokenBalances(balances);
         setExchangeRates(rates);
+        setTransactions(txHistory);
+
 
         // Auto-select first token with balance, or XLM by default
         if (balances.length > 0 && !selectedToken) {
@@ -104,6 +107,16 @@ export function useWallet() {
       console.error("Failed to refresh balances:", err);
     } finally {
       setLoadingBalances(false);
+    }
+  }, [walletAddress]);
+    
+  const refreshTransactions = useCallback(async () => {
+    if (!walletAddress) return;
+    try {
+      const txHistory = await getTransactionHistory(walletAddress);
+      setTransactions(txHistory);
+    } catch (err) {
+      console.error("Failed to refresh transactions:", err);
     }
   }, [walletAddress]);
 
@@ -195,6 +208,8 @@ export function useWallet() {
     loadingBalances,
     refreshBalances,
     getUsdValue,
+    transactions,
+    refreshTransactions,
   };
 }
 

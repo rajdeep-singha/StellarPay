@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import HomePage from './components/HomePage';
 import EmployerDashboard from './components/EmployerDashboard';
+import TransactionHistory from './components/TransactionHistory';
+import { useWallet } from './hooks/useWallet';
 
 function App() {
   const [view, setView] = useState('home');
+  const { transactions } = useWallet();
 
   return (
     <>
@@ -24,6 +27,7 @@ function App() {
         </button>
       </div>
       {view === 'employer' ? <EmployerDashboard /> : <HomePage />}
+      <TransactionHistory transactions={transactions} />
     </>
   );
 }
