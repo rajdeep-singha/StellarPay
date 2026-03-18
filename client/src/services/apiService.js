@@ -1,9 +1,8 @@
 /**
  * API Service for communicating with the Go backend
- * Backend runs at http://localhost:8080
  */
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * Send Lumens (XLM) to a recipient using the Go backend
