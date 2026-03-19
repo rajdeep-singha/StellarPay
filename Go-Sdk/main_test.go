@@ -125,6 +125,8 @@ func TestEnableCORS(t *testing.T) {
 		nextHandlerCalled = false
 		req, _ := http.NewRequest("OPTIONS", "/api/test", nil)
 		req.Header.Set("Origin", "http://localhost:3000")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
 
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -134,6 +136,11 @@ func TestEnableCORS(t *testing.T) {
 		}
 		if nextHandlerCalled {
 			t.Error("next handler should NOT be called for OPTIONS")
+		}
+
+		expectedHeaders := "Content-Type, Authorization, X-API-Key"
+		if got := rr.Header().Get("Access-Control-Allow-Headers"); got != expectedHeaders {
+			t.Errorf("Access-Control-Allow-Headers: expected %q, got %q", expectedHeaders, got)
 		}
 	})
 }
