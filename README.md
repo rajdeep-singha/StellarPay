@@ -167,7 +167,7 @@ Stellar-Pay/
 |----------|-------------|
 | `register_employee(wallet, salary)` | Register new employee |
 | `deposit_to_vault(from, amount, token)` | Deposit funds to company vault |
-| `request_advance(emp_id, amount, token)` | Request salary advance (1.25% fee) |
+| `request_advance(caller, emp_id, amount, token)` | Request salary advance (employee-authenticated, 1.25% fee) |
 | `get_remaining_salary(emp_id)` | Check available salary balance |
 | `release_remaining_salary(emp_id, token, salary)` | Release remaining salary |
 | `vault_balance(token)` | Get vault balance |
