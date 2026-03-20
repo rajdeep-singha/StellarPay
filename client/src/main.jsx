@@ -19,6 +19,7 @@ function validateRequiredEnv() {
       ', '
     )}. Please set them in the client \`.env\` file before running the app.`
     console.warn(msg)
+    throw new Error(msg)
   }
 }
 
