@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
-import {  registerEmployee } from "../services/sorobanService";//getEmployeeWithWA
+import { registerEmployee, getEmployeeWithWA } from "../services/sorobanService";
 import useWallet from "../hooks/useWallet";
 import Card from "./Cards";
 import Button from "./Button";
@@ -11,7 +11,6 @@ const RegistrationCard = ({ onSuccess }) => {
     const { walletAddress } = useWallet();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
-    const isRegistered = useEmployeeStore((state) => state.isRegistered);
     // Remove global loading states that get stuck on app init
     const [isLoading, setIsLoading] = useState(false);
 
@@ -42,7 +41,12 @@ const RegistrationCard = ({ onSuccess }) => {
     const handleSubmit = async (e) => {
         // user registration is handled here
         e.preventDefault();
+        if (!walletAddress) {
+            setError("Please connect your wallet before registering.");
+            return;
+        }
         if (!dataValidate()) return;
+
         try {
             setIsLoading(true);
             const salaryInStroops = Math.floor(Number(form.salary) * 10000000);
@@ -66,7 +70,7 @@ const RegistrationCard = ({ onSuccess }) => {
             const empData = await safeSyncProfile();
 
             setEmpData({
-                empId: empData?.empId || null,
+                empId: empData?.emp_id ?? empData?.empId ?? null,
                 salary: Number(form.salary),
                 email: form.email,
                 isRegistered: true,
@@ -78,10 +82,16 @@ const RegistrationCard = ({ onSuccess }) => {
             if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
                 try {
                     const existingData = await getEmployeeWithWA(walletAddress);
+
+                    if (!existingData) {
+                        setError("Wallet profile not found. Please try again.");
+                        return;
+                    }
+
                     setEmpData({
-                        empId: existingData?.empId || null,
-                        salary: existingData.rem_salary / 10000000,
-                        email: existingData.email,
+                        empId: existingData.emp_id ?? existingData.empId ?? null,
+                        salary: (existingData.rem_salary ?? 0) / 10000000,
+                        email: existingData.email ?? form.email,
                         isRegistered: true, // Force Zustand to see us!
                     });
                     if (onSuccess) onSuccess(); // Notify HomePage

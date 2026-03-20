@@ -1,4 +1,4 @@
-import { registerEmployee } from "../services/sorobanService.js"; //getEmployeeWithWA,
+import { getEmployeeWithWA } from "../services/sorobanService.js";
 import { useCallback } from "react";
 import { useEmployeeStore } from "../store/empStore.js";
 
@@ -14,37 +14,34 @@ export function useCheckUser() {
 
     const checkUser = useCallback(async (address) => {
         if (!address) {
-            return { isRegistered: false };
+            return { isRegistered: false, empData: null };
         }
 
         try {
-            setLoading(true)
+            setLoading(true);
             const empData = await getEmployeeWithWA(address);
+
+            if (!empData) {
+                return { isRegistered: false, empData: null };
+            }
+
             setEmpData({
-                empId: empData.empId,
-                salary: empData.rem_salary / 10000000,
-                email: empData.email,
-            })
+                empId: empData.emp_id ?? empData.empId ?? null,
+                salary: (empData.rem_salary ?? 0) / 10000000,
+                email: empData.email ?? "",
+                isRegistered: true,
+            });
+
             return { isRegistered: true, empData };
 
         } catch (error) {
             console.error("checkUser error details:", error);
-            const isNotRegistered =
-                error.message?.includes("WasmVm") ||
-                error.message?.includes("InvalidAction") ||
-                error.message?.includes("simulation failed") ||
-                error.message?.includes("Wallet not registered");
-
-            if (!isNotRegistered) {
-                console.error("checkUser caught an unexpected bug, NOT a simple 'wallet missing' error:", error);
-            }
-
-            return { isRegistered: false };
+            return { isRegistered: false, empData: null };
         }
         finally {
             setLoading(false);
         }
-    }, []);
+    }, [setEmpData, setLoading]);
 
     return { checkUser }
 }
