@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="orbitalGradient" x1="72" y1="72" x2="440" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="coreGradient" x1="196" y1="196" x2="316" y2="316" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C084FC"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="168" stroke="url(#orbitalGradient)" stroke-width="28"/>
+  <ellipse cx="256" cy="256" rx="206" ry="112" transform="rotate(-24 256 256)" stroke="url(#orbitalGradient)" stroke-opacity="0.7" stroke-width="18"/>
+  <ellipse cx="256" cy="256" rx="112" ry="206" transform="rotate(24 256 256)" stroke="url(#orbitalGradient)" stroke-opacity="0.45" stroke-width="14"/>
+
+  <circle cx="346" cy="196" r="18" fill="url(#orbitalGradient)"/>
+  <circle cx="194" cy="346" r="14" fill="url(#orbitalGradient)" fill-opacity="0.85"/>
+  <circle cx="256" cy="256" r="62" fill="url(#coreGradient)"/>
+</svg>

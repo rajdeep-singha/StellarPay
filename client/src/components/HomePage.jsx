@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import { useWallet } from "../hooks/useWallet";
-import { requestAdvance, getRemainingSalary,  CONTRACTS } from "../services/sorobanService";
+import { requestAdvance, CONTRACTS } from "../services/sorobanService";
 import { sendLumens } from "../services/apiService";
 import PayCycleProgress from "./PayCycleProgress";
 import WithdrawForm from "./WithdrawForm";
@@ -8,8 +9,32 @@ import TransactionHistory from "./TransactionHistory";
 import SendMoneyModal from "./SendMoneyModal";
 import WaitlistModal from "./WaitlistModal";
 import { useEmployeeStore } from "../store/empStore";
-import RegistrationCard from "./RegistrationCard";
 import { useCheckUser } from "../hooks/checkUser";
+import logoSvg from "../assets/stellarpay-logo.svg";
+import heroThumbnail from "../assets/hero-blockchain-thumbnail.svg";
+
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: "easeOut",
+    },
+  },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.12,
+    },
+  },
+};
 
 
 const HomePage = () => {
@@ -43,7 +68,6 @@ const HomePage = () => {
   const [notification, setNotification] = useState(null);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false); //to check if a user is registered or not 
 
 
   const fetchEmployeeData = useCallback(async () => {
@@ -55,12 +79,9 @@ const HomePage = () => {
       const { isRegistered, empData } = await checkUser(walletAddress);
 
       if (!isRegistered) {
-        setShowRegisterModal(true);
+        setAvailableBalance(0);
         return;
       }
-
-      // If registered, hide the modal forcefully and load scaled salary
-      setShowRegisterModal(false);
 
       const scaledSalary = empData?.rem_salary
         ? empData.rem_salary / 10000000
@@ -182,57 +203,62 @@ const HomePage = () => {
       )}
 
       {/* Header */}
-      <header className="w-full border-b border-white/[0.08]">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <header className="w-full border-b border-white/[0.08] backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#0a0a0a]" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" />
-              </svg>
+            <img src={logoSvg} alt="StellarPay Logo" className="w-10 h-10 sm:w-11 sm:h-11" />
+            <div className="leading-tight">
+              <p className="text-lg sm:text-xl font-semibold tracking-tight text-white">StellarPay</p>
+              <p className="text-xs text-gray-500">Borderless Payroll Infrastructure</p>
             </div>
-            <span className="text-xl font-semibold text-white">StellarPay</span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-7 text-sm">
             <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
             <a href="#stats" className="text-gray-400 hover:text-white transition-colors">Stats</a>
             <a href="#about" className="text-gray-400 hover:text-white transition-colors">About</a>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {isConnected && (
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.02 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={() => setShowSendModal(true)}
-                className="px-4 py-2 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-all flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition-all flex items-center gap-2"
               >
                 <span>💸</span>
                 <span className="hidden sm:inline">Send XLM</span>
-              </button>
+              </motion.button>
             )}
 
             {isConnected ? (
               <div className="flex items-center gap-2">
-                <div className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
+                <div className="hidden sm:flex px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-emerald-400 font-mono text-sm">
                     {formatAddress(walletAddress)}
                   </span>
                 </div>
-                <button
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   onClick={disconnectWallet}
-                  className="p-2 rounded-lg border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
+                  className="p-2.5 rounded-xl border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
                   title="Disconnect"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                </button>
+                </motion.button>
               </div>
             ) : (
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.02 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={connectWallet}
                 disabled={isConnecting}
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-400 to-blue-400 text-black font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isConnecting ? (
                   <span className="flex items-center gap-2">
@@ -243,68 +269,83 @@ const HomePage = () => {
                     Connecting...
                   </span>
                 ) : (
-                  "Connect Wallet ✦"
+                  "Connect Wallet"
                 )}
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 py-16 md:py-24">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-              <span className="underline decoration-2 underline-offset-8">Think</span>{" "}
-              <span className="bg-gradient-to-r from-pink-300 to-purple-300 px-3 py-1">Secure</span>
-              <br />
-              <span className="text-white">Pay Effortlessly</span>
+      <motion.section
+        initial="hidden"
+        animate="visible"
+        variants={staggerContainer}
+        className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-10 md:pt-16 md:pb-14"
+      >
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <motion.div variants={fadeUp} className="space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-xs text-gray-300 tracking-wide uppercase">
+              <span className="w-2 h-2 rounded-full bg-blue-400" />
+              Stellar + Soroban Powered
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.08] tracking-tight text-white">
+              Modern Payroll and
+              <span className="block bg-gradient-to-r from-purple-300 to-blue-300 bg-clip-text text-transparent">
+                Borderless Payments
+              </span>
             </h1>
 
-            <div className="w-full h-px bg-white/10 my-8" />
-
-            <p className="text-xl text-gray-400 leading-relaxed">
-              Your Gateway to Instant Remittances, Early Wage Access and Seamless Payroll.
+            <p className="text-base sm:text-lg text-gray-400 leading-relaxed max-w-xl">
+              Streamline remittance, early wage access, and global payouts with secure, low-fee rails built for modern teams.
             </p>
 
-            <div className="w-full h-px bg-white/10 my-8" />
-
-            <div className="flex flex-wrap gap-4">
-              <button className="px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-all flex items-center gap-2">
+            <motion.div variants={fadeUp} className="flex flex-wrap gap-3 sm:gap-4">
+              <motion.button
+                whileHover={{ y: -2, scale: 1.02 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="px-6 py-3 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-all"
+              >
                 Know More
-                <span className="text-gray-500">ⓘ</span>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ y: -2, scale: 1.02 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={() => setShowWaitlistModal(true)}
-                className="px-6 py-3 rounded-lg bg-gradient-to-r from-pink-300/90 to-purple-300/90 text-black font-semibold hover:opacity-90 transition-all flex items-center gap-2"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-300/90 to-blue-300/90 text-black font-semibold hover:opacity-90 transition-all"
               >
                 Join the Waitlist
-                <span>✦</span>
-              </button>
-            </div>
-          </div>
+              </motion.button>
+            </motion.div>
+          </motion.div>
 
-          {/* Abstract Graphics */}
-          <div className="hidden lg:flex justify-center items-center relative">
-            <div className="relative w-80 h-80">
-              <div className="absolute top-0 right-0 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-full" />
-              <div className="absolute top-12 left-0 w-8 h-8 bg-gray-500 rounded-full" />
-              <div className="absolute top-20 right-8 w-40 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full" />
-              <div className="absolute top-32 right-0 w-8 h-8 bg-gray-400 rounded-full" />
-              <div className="absolute top-40 left-8 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-500 rounded-full" />
-              <div className="absolute bottom-20 right-16 w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-full" />
-              <div className="absolute bottom-16 right-8 w-4 h-40 bg-gradient-to-b from-gray-300 to-gray-500 rounded-full" />
-              <div className="absolute bottom-24 right-0 w-4 h-28 bg-gradient-to-b from-gray-500 to-gray-700 rounded-full" />
-              <div className="absolute bottom-12 right-4 w-3 h-3 bg-white rounded-full" />
-              <div className="absolute top-28 right-20 w-3 h-3 bg-gray-400 rounded-full" />
+          <motion.div
+            variants={fadeUp}
+            className="lg:justify-self-end"
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <div className="relative rounded-3xl border border-white/10 bg-white/[0.02] p-3 shadow-2xl shadow-blue-500/10">
+              <img
+                src={heroThumbnail}
+                alt="Blockchain and payment network illustration"
+                className="w-full max-w-[560px] rounded-2xl object-cover"
+              />
             </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Warning Messages */}
-      <section className="max-w-7xl mx-auto px-6">
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        variants={fadeUp}
+        className="max-w-7xl mx-auto px-4 sm:px-6"
+      >
         {checkingInstallation ? (
           <div className="mb-8 p-5 rounded-xl bg-[#111] border border-white/10">
             <div className="flex items-center gap-4">
@@ -340,11 +381,22 @@ const HomePage = () => {
             {walletError}
           </div>
         )}
-      </section>
+      </motion.section>
 
       {/* Features Grid */}
-      <section id="features" className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid md:grid-cols-2 gap-6">
+      <motion.section
+        id="features"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        variants={fadeUp}
+        className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10"
+      >
+        <div className="mb-6 sm:mb-8">
+          <p className="text-sm uppercase tracking-wider text-gray-500">Features</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold text-white mt-2">Built for speed, trust, and scale</h2>
+        </div>
+        <div className="grid md:grid-cols-2 gap-5 sm:gap-6">
           <FeatureCard
             icon={
               <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -366,21 +418,27 @@ const HomePage = () => {
             description="Track your earnings, withdrawals, and spending patterns in real-time."
           />
         </div>
-      </section>
+      </motion.section>
 
       {/* Dashboard Section */}
-      <section className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        variants={fadeUp}
+        className="max-w-7xl mx-auto px-4 sm:px-6 py-8"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
           {/* Balance Card */}
           <div className="lg:col-span-2">
-            <div className="rounded-2xl bg-[#111] border border-white/[0.08] p-8">
+            <div className="rounded-3xl bg-gradient-to-br from-[#111827] to-[#10131f] border border-white/[0.08] p-5 sm:p-8 shadow-xl shadow-blue-950/20">
               <div className="flex items-start justify-between mb-8">
                 <div>
-                  <p className="text-gray-500 text-sm font-medium uppercase tracking-wider">
+                  <p className="text-gray-400 text-xs sm:text-sm font-medium uppercase tracking-[0.2em]">
                     Available Balance
                   </p>
                   <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-5xl font-bold text-white">
+                    <span className="text-3xl sm:text-5xl font-semibold text-white tracking-tight">
                       {selectedToken?.symbol || "XLM"}{" "}
                       {availableBalance.toLocaleString("en-US", {
                         minimumFractionDigits: 2,
@@ -388,7 +446,7 @@ const HomePage = () => {
                       })}
                     </span>
                   </div>
-                  <p className="text-gray-600 text-sm mt-2">
+                  <p className="text-gray-500 text-xs sm:text-sm mt-2">
 
                     of {selectedToken?.symbol || "XLM"} {(monthlySalary ?? 0).toLocaleString()} monthly salary
 
@@ -402,13 +460,13 @@ const HomePage = () => {
 
               {/* Progress Bar */}
               <div className="mb-8">
-                <div className="flex justify-between text-sm text-gray-500 mb-2">
+                <div className="flex justify-between text-xs sm:text-sm text-gray-500 mb-2">
                   <span>Withdrawn</span>
                   <span>{((1 - availableBalance / Math.max(monthlySalary || 1, 1)) * 100).toFixed(1)}%</span>
                 </div>
                 <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-purple-400 to-blue-400 rounded-full transition-all duration-500"
                     style={{ width: `${((Math.max(monthlySalary || 1, 1) - availableBalance) / Math.max(monthlySalary || 1, 1)) * 100}%` }}
                   />
                 </div>
@@ -439,16 +497,23 @@ const HomePage = () => {
             <TransactionHistory transactions={transactions} />
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Stats Section */}
-      <section id="stats" className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <motion.section
+        id="stats"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+        variants={fadeUp}
+        className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-12"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
           <StatCard icon="📊" label="Fee Rate" value="1.25%" subtext="Per advance" />
           <StatCard icon="⚡" label="Processing" value="~5 sec" subtext="Stellar network" />
           <StatCard icon="🔒" label="Contract" value="Verified" subtext="Soroban smart contract" />
         </div>
-      </section>
+      </motion.section>
 
       {/* Send Money Modal */}
       {showSendModal && (
@@ -467,19 +532,9 @@ const HomePage = () => {
         />
       )}
 
-      {/* Registration Modal */}
-      {showRegisterModal && (
-        <RegistrationCard
-          onSuccess={() => {
-            setShowRegisterModal(false);
-            fetchEmployeeData();
-          }}
-        />
-      )}
-
       {/* Footer */}
-      <footer className="border-t border-white/[0.08] mt-16">
-        <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <footer id="about" className="border-t border-white/[0.08] mt-14 sm:mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-gray-600 text-sm">
             Built on Stellar • Powered by Soroban Smart Contracts
           </p>
@@ -495,26 +550,34 @@ const HomePage = () => {
 };
 
 const FeatureCard = ({ icon, title, description }) => (
-  <div className="rounded-2xl bg-[#111] border border-white/[0.08] p-6">
-    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 mb-4">
+  <motion.div
+    whileHover={{ y: -4 }}
+    transition={{ type: "spring", stiffness: 280, damping: 22 }}
+    className="rounded-3xl bg-gradient-to-br from-[#111827] to-[#0f172a] border border-white/[0.08] p-6 shadow-lg shadow-purple-900/10"
+  >
+    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-300 mb-4">
       {icon}
     </div>
-    <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-    <p className="text-gray-500 text-sm">{description}</p>
-  </div>
+    <h3 className="text-lg font-semibold text-white mb-2 tracking-tight">{title}</h3>
+    <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
+  </motion.div>
 );
 
 const StatCard = ({ icon, label, value, subtext }) => (
-  <div className="rounded-2xl bg-[#111] border border-white/[0.08] p-6">
+  <motion.div
+    whileHover={{ y: -4 }}
+    transition={{ type: "spring", stiffness: 280, damping: 22 }}
+    className="rounded-3xl bg-gradient-to-br from-[#111827] to-[#0f172a] border border-white/[0.08] p-6 shadow-lg shadow-blue-900/10"
+  >
     <div className="flex items-start justify-between">
       <div>
-        <p className="text-gray-500 text-sm">{label}</p>
-        <p className="text-2xl font-bold text-white mt-1">{value}</p>
-        <p className="text-gray-600 text-xs mt-1">{subtext}</p>
+        <p className="text-gray-400 text-sm">{label}</p>
+        <p className="text-2xl font-semibold text-white mt-1 tracking-tight">{value}</p>
+        <p className="text-gray-500 text-xs mt-1">{subtext}</p>
       </div>
       <span className="text-2xl">{icon}</span>
     </div>
-  </div>
+  </motion.div>
 );
 
 export default HomePage;

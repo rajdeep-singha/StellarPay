@@ -14,6 +14,7 @@
     "@stellar/stellar-sdk": "^13.3.0",
     "@supabase/supabase-js": "^2.95.3",
     "@tailwindcss/vite": "^4.1.4",
+    "framer-motion": "^12.38.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.1.4",

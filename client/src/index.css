@@ -96,12 +96,12 @@
 
 /* Selection color */
 ::selection {
-  background: rgba(244, 114, 182, 0.3);
+  background: rgba(168, 85, 247, 0.3);
   color: white;
 }
 
 /* Focus visible for accessibility */
 :focus-visible {
-  outline: 2px solid rgba(244, 114, 182, 0.5);
+  outline: 2px solid rgba(59, 130, 246, 0.55);
   outline-offset: 2px;
 }
