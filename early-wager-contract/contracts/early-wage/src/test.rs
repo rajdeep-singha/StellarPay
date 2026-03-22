@@ -73,13 +73,13 @@ fn test_initialize_twice_fails() {
 
 #[test]
 fn test_register_employee_success() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let employee_wallet = Address::generate(&env);
     let salary: u128 = 5_000_0000000; // 5,000 with 7 decimals
 
-    let emp_id = client.register_employee(&employee_wallet, &salary);
+    let emp_id = client.register_employee(&employee_wallet, &salary, &token_client.address);
     assert_eq!(emp_id, 1);
 
     // Verify details
@@ -94,16 +94,16 @@ fn test_register_employee_success() {
 
 #[test]
 fn test_register_multiple_employees() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet1 = Address::generate(&env);
     let wallet2 = Address::generate(&env);
     let wallet3 = Address::generate(&env);
 
-    let id1 = client.register_employee(&wallet1, &5000u128);
-    let id2 = client.register_employee(&wallet2, &7500u128);
-    let id3 = client.register_employee(&wallet3, &3000u128);
+    let id1 = client.register_employee(&wallet1, &5000u128, &token_client.address);
+    let id2 = client.register_employee(&wallet2, &7500u128, &token_client.address);
+    let id3 = client.register_employee(&wallet3, &3000u128, &token_client.address);
 
     assert_eq!(id1, 1);
     assert_eq!(id2, 2);
@@ -114,22 +114,22 @@ fn test_register_multiple_employees() {
 #[test]
 #[should_panic(expected = "Error(Contract, #4)")]
 fn test_register_duplicate_wallet_fails() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &5000u128);
-    client.register_employee(&wallet, &8000u128); // Duplicate → AlreadyRegistered
+    client.register_employee(&wallet, &5000u128, &token_client.address);
+    client.register_employee(&wallet, &8000u128, &token_client.address); // Duplicate → AlreadyRegistered
 }
 
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_register_zero_salary_fails() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &0u128); // Zero salary → InvalidAmount
+    client.register_employee(&wallet, &0u128, &token_client.address); // Zero salary → InvalidAmount
 }
 
 // ============================================================
@@ -182,14 +182,14 @@ fn test_request_advance_success() {
     let emp_wallet = Address::generate(&env);
     let salary: u128 = 10_000;
 
-    client.register_employee(&emp_wallet, &salary);
+    client.register_employee(&emp_wallet, &salary, &token_client.address);
 
     // Fund the vault
     token_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Request advance of 5,000 (fee = 5000 * 125 / 10000 = 62)
-    let net = client.request_advance(&1u128, &5_000i128, &token_client.address);
+    let net = client.request_advance(&emp_wallet, &1u128, &5_000i128, &token_client.address);
     let expected_fee = 5_000i128 * 125 / 10000;
     let expected_net = 5_000i128 - expected_fee;
     assert_eq!(net, expected_net);
@@ -206,13 +206,13 @@ fn test_request_advance_exceeds_salary_fails() {
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
-    client.register_employee(&emp_wallet, &5000u128);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
 
     token_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Try to advance entire salary (>= rem_salary) → ExceedsRemainingSalary
-    client.request_advance(&1u128, &5000i128, &token_client.address);
+    client.request_advance(&emp_wallet, &1u128, &5001i128, &token_client.address);
 }
 
 #[test]
@@ -222,9 +222,21 @@ fn test_request_advance_zero_amount_fails() {
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
-    client.register_employee(&emp_wallet, &5000u128);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
 
-    client.request_advance(&1u128, &0i128, &token_client.address); // InvalidAmount
+    client.request_advance(&emp_wallet, &1u128, &0i128, &token_client.address); // InvalidAmount
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_request_advance_negative_amount_fails() {
+    let (env, contract_id, _admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
+
+    client.request_advance(&emp_wallet, &1u128, &-10i128, &token_client.address); // InvalidAmount
 }
 
 #[test]
@@ -233,7 +245,25 @@ fn test_request_advance_nonexistent_employee_fails() {
     let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
-    client.request_advance(&999u128, &100i128, &token_client.address); // EmployeeNotFound
+    let random_caller = Address::generate(&env);
+    client.request_advance(&random_caller, &999u128, &100i128, &token_client.address); // EmployeeNotFound
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")]
+fn test_request_advance_unauthorized_caller_fails() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
+
+    token_client.mint(&admin, &100_000);
+    client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
+
+    client.request_advance(&attacker, &1u128, &100i128, &token_client.address);
 }
 
 // ============================================================
@@ -248,14 +278,14 @@ fn test_release_remaining_salary_success() {
     let emp_wallet = Address::generate(&env);
     let salary: u128 = 10_000;
 
-    client.register_employee(&emp_wallet, &salary);
+    client.register_employee(&emp_wallet, &salary, &token_client.address);
 
     // Fund the vault
     token_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Request partial advance first
-    client.request_advance(&1u128, &3_000i128, &token_client.address);
+    client.request_advance(&emp_wallet, &1u128, &3_000i128, &token_client.address);
 
     // Release the remaining (10_000 - 3_000 = 7_000)
     let new_salary: u128 = 10_000;
@@ -286,7 +316,7 @@ fn test_release_zero_remaining_fails() {
     // This test verifies the error path is reachable if rem_salary were 0.
 
     // For testing, we'll register emp, release (pays rem_salary, sets to 0)
-    client.register_employee(&emp_wallet, &1000u128);
+    client.register_employee(&emp_wallet, &1000u128, &token_client.address);
 
     token_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
@@ -313,11 +343,11 @@ fn test_release_nonexistent_employee_fails() {
 
 #[test]
 fn test_get_remaining_salary() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &8500u128);
+    client.register_employee(&wallet, &8500u128, &token_client.address);
 
     let remaining = client.get_remaining_salary(&1u128);
     assert_eq!(remaining, 8500);

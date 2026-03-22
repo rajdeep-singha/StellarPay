@@ -31,6 +31,12 @@ pub enum ContractError {
     InvalidAmount = 7,
     /// No remaining salary to release.
     NoRemainingSalary = 8,
+    /// The authenticated caller is not the target employee wallet.
+    CallerMismatch = 9,
+    /// Arithmetic overflow/underflow during amount calculations.
+    ArithmeticOverflow = 10,
+    /// Contract vault does not have enough balance to fulfill payout.
+    InsufficientVaultBalance = 11,
 }
 
 // ============================================================
@@ -259,6 +265,7 @@ impl EarlyWageContract {
     /// A 1.25 % processing fee is deducted automatically.
     pub fn request_advance(
         e: Env,
+        caller: Address,
         emp_id: u128,
         amount: i128,
         token: Address,
@@ -271,6 +278,8 @@ impl EarlyWageContract {
             return Err(ContractError::InvalidAmount);
         }
 
+        let amount_u128 = u128::try_from(amount).map_err(|_| ContractError::InvalidAmount)?;
+
         let mut emp_map: Map<u128, EmployeeDetails> = e
             .storage()
             .instance()
@@ -279,26 +288,55 @@ impl EarlyWageContract {
 
         let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
 
-        // Authorization: only the employee can request their own advance
+        caller.require_auth();
+        if caller != emp.wallet {
+            return Err(ContractError::CallerMismatch);
+        }
+
+        // Authorization: employee wallet must authorize before any transfer logic
         emp.wallet.require_auth();
 
-        if amount as u128 >= emp.rem_salary {
+        if amount_u128 > emp.rem_salary {
             return Err(ContractError::ExceedsRemainingSalary);
         }
 
-        let fee = amount * 125 / 10000; // 1.25 %
-        let final_amount = amount - fee;
+        let fee = amount
+            .checked_mul(125)
+            .and_then(|v| v.checked_div(10000))
+            .ok_or(ContractError::ArithmeticOverflow)?;
+        let final_amount = amount
+            .checked_sub(fee)
+            .ok_or(ContractError::ArithmeticOverflow)?;
 
         let client = token::Client::new(&e, &token);
+        if client.balance(&e.current_contract_address()) < final_amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
         client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
 
-        emp.rem_salary -= amount as u128;
+        let new_remaining = emp
+            .rem_salary
+            .checked_sub(amount_u128)
+            .ok_or(ContractError::ArithmeticOverflow)?;
+
+        emp.rem_salary = new_remaining;
         emp_map.set(emp_id, emp.clone());
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
 
-        e.events()
-            .publish((symbol_short!("advance"), symbol_short!("requested")), (emp_id, amount, fee, final_amount, token));
+        e.events().publish(
+            (symbol_short!("advance"), symbol_short!("requested")),
+            (
+                emp_id,
+                caller,
+                emp.wallet.clone(),
+                amount,
+                fee,
+                final_amount,
+                new_remaining,
+                token,
+            ),
+        );
 
         Ok(final_amount)
     }
