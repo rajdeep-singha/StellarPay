@@ -327,6 +327,111 @@ export async function getRemainingSalary(publicKey, empId) {
   }
 }
 
+function normalizeEmployeeDetails(rawDetails) {
+  if (!rawDetails || typeof rawDetails !== "object") return null;
+
+  const toNumber = (value) => {
+    if (typeof value === "bigint") return Number(value);
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const toAddressString = (value) => {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    if (typeof value?.toString === "function") return value.toString();
+    return "";
+  };
+
+  return {
+    emp_id: toNumber(rawDetails.emp_id),
+    empId: toNumber(rawDetails.emp_id),
+    wallet: toAddressString(rawDetails.wallet),
+    rem_salary: toNumber(rawDetails.rem_salary),
+    salary_token: toAddressString(rawDetails.salary_token),
+  };
+}
+
+export async function get_emp_id_by_wallet(wallet) {
+  if (!wallet) return 0;
+
+  try {
+    const account = await server.getAccount(wallet);
+    const contract = new Contract(CONTRACT_ADDRESS_WAGE);
+    const operation = contract.call("get_emp_id_by_wallet", addressToScVal(wallet));
+
+    const transaction = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(operation)
+      .setTimeout(300)
+      .build();
+
+    const simResult = await server.simulateTransaction(transaction);
+    if (!simResult.result) return 0;
+
+    const nativeEmpId = scValToNative(simResult.result.retval);
+    const empId = typeof nativeEmpId === "bigint" ? Number(nativeEmpId) : Number(nativeEmpId || 0);
+    return Number.isFinite(empId) ? empId : 0;
+  } catch (error) {
+    console.error("Error fetching employee ID by wallet:", error);
+    return 0;
+  }
+}
+
+export async function get_emp_details(empId, wallet) {
+  if (!wallet || !empId) return null;
+
+  try {
+    const account = await server.getAccount(wallet);
+    const contract = new Contract(CONTRACT_ADDRESS_WAGE);
+    const operation = contract.call("get_emp_details", numberToU128(empId));
+
+    const transaction = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(operation)
+      .setTimeout(300)
+      .build();
+
+    const simResult = await server.simulateTransaction(transaction);
+    if (!simResult.result) return null;
+
+    const nativeDetails = scValToNative(simResult.result.retval);
+    return normalizeEmployeeDetails(nativeDetails);
+  } catch (error) {
+    console.error("Error fetching employee details:", error);
+    return null;
+  }
+}
+
+export async function getEmployeeWithWA(wallet) {
+  if (!wallet) return null;
+
+  try {
+    const empId = await get_emp_id_by_wallet(wallet);
+    if (!empId) return null;
+
+    const empDetails = await get_emp_details(empId, wallet);
+    if (!empDetails) return null;
+
+    return {
+      emp_id: empId,
+      empId,
+      ...empDetails,
+    };
+  } catch (error) {
+    console.error("Error fetching employee:", error);
+    return null;
+  }
+}
+
 export async function releaseRemainingSalary(publicKey, empId, tokenAddress = CONTRACT_ADDRESS_TOKEN, newSalary) {
   const args = [
     numberToU128(empId),
@@ -373,6 +478,9 @@ export default {
   requestAdvance,
   getVaultBalance,
   getEmployeeDetails,
+  get_emp_id_by_wallet,
+  get_emp_details,
+  getEmployeeWithWA,
   getRemainingSalary,
   releaseRemainingSalary,
   getWalletTokenBalances,
