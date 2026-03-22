@@ -2,13 +2,15 @@ import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
 import { registerEmployee, getEmployeeWithWA } from "../services/sorobanService";
 import useWallet from "../hooks/useWallet";
+import {  registerEmployee } from "../services/sorobanService";//getEmployeeWithWA
+import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
 import InputField from "./InputField";
 
 
 const RegistrationCard = ({ onSuccess }) => {
-    const { walletAddress } = useWallet();
+    const { walletAddress } = useWalletContext();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
     // Remove global loading states that get stuck on app init

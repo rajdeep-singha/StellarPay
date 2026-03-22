@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useWallet } from "../hooks/useWallet";
+import { useWalletContext } from "../context/WalletContext";
 import {
   depositToVault,
   getVaultBalance,
@@ -16,7 +16,7 @@ import {
 const EMPLOYEE_IDS = [1, 2, 3, 4];
 
 const EmployerDashboard = () => {
-  const { walletAddress, isConnected, isConnecting, connectWallet, disconnectWallet, formatAddress } = useWallet();
+  const { walletAddress, isConnected, isConnecting, connectWallet, disconnectWallet, formatAddress } = useWalletContext();
 
   const [employees, setEmployees] = useState([]);
   const [vaultBalance, setVaultBalance] = useState(0);
