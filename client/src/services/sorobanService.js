@@ -12,16 +12,15 @@ import {
 
 import { signTransaction } from "@stellar/freighter-api";
 
-// Contract addresses - Update these with your deployed contract addresses
-const CONTRACT_ADDRESS_TOKEN = "CDHRNIGP6FT4NVRRGIDSAAOKUQMQYAS7LX6BWLX65SEAWJAGTF6YVZ7N";// old one CDB5EWYMHLVBUCF34JKI6V53DLV6IKZPABNTPGXRR7L5XUVDBKE2ZSA3
+// Contract addresses (set these via VITE_* env vars)
+const CONTRACT_ADDRESS_TOKEN = import.meta.env.VITE_CONTRACT_TOKEN;
 
-const CONTRACT_ADDRESS_WAGE = "CDCLWMLTRGRKLVIGMZTBIRRXF2KEH5UAQBSMCL3RDGTSZRV7PDVY2O5C";//CAHEHF7DFQKQBBG6SRQF6U3P6WWDIIP6UAZXEPZAXMXYYYLIS7L7MJTN old contract address 
+const CONTRACT_ADDRESS_WAGE = import.meta.env.VITE_CONTRACT_WAGE;
 
 const RPC_URL = "https://soroban-testnet.stellar.org";
 
-if (!CONTRACT_ADDRESS_TOKEN || !CONTRACT_ADDRESS_WAGE) {
-  console.warn("⚠️ Contract addresses not set in .env — soroban calls will fail.");
-}
+if (!CONTRACT_ADDRESS_TOKEN || !CONTRACT_ADDRESS_WAGE)
+  console.warn("⚠️ Contract addresses not set in the client `.env` — soroban calls will fail.");
 
 // ============================================
 // SUPPORTED TOKENS (Stellar Testnet)
@@ -344,6 +343,29 @@ export const CONTRACTS = {
   WAGE: CONTRACT_ADDRESS_WAGE,
   RPC_URL,
 };
+export async function getTransactionHistory(publicKey) {
+  try {
+    const response = await fetch(
+      `https://horizon-testnet.stellar.org/accounts/${publicKey}/operations?limit=20&order=desc`
+    );
+    if (!response.ok) throw new Error("Failed to fetch transaction history");
+
+    const data = await response.json();
+
+    return data._embedded.records.map((op) => ({
+      hash: op.transaction_hash,
+      type: op.type === "payment" ? (op.to === publicKey ? "Receive" : "Send") : op.type,
+      amount: parseFloat(op.amount || 0),
+      date: op.created_at,
+      status: "completed",
+      recipient: op.to || null,
+      fee: 0,
+    }));
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+    return [];
+  }
+}
 
 export default {
   registerEmployee,
@@ -355,6 +377,7 @@ export default {
   releaseRemainingSalary,
   getWalletTokenBalances,
   fetchExchangeRates,
+  getTransactionHistory,
   SUPPORTED_TOKENS,
   CONTRACTS,
 };

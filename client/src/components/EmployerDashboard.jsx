@@ -7,6 +7,11 @@ import {
   releaseRemainingSalary,
   CONTRACTS,
 } from "../services/sorobanService";
+import {
+  exportEmployeePayments,
+  exportVaultSummary,
+  exportPayrollReport,
+} from "../utils/csvExport";
 
 const EMPLOYEE_IDS = [1, 2, 3, 4];
 
@@ -98,6 +103,47 @@ const EmployerDashboard = () => {
       showNotification(err.message || "Salary release failed. Please try again.", "error");
     } finally {
       setReleasingId(null);
+    }
+  };
+
+  const handleExportEmployees = () => {
+    try {
+      exportEmployeePayments(employees);
+      showNotification("Employee payment data exported successfully");
+    } catch (err) {
+      showNotification(err.message || "Export failed", "error");
+    }
+  };
+
+  const handleExportVault = () => {
+    try {
+      const vaultData = {
+        balance: vaultBalance,
+        totalPayroll: totalSalaries,
+        totalWithdrawn: totalWithdrawn,
+        activeEmployees: activeEmployees,
+        coverage: totalSalaries > 0 ? ((vaultBalance / totalSalaries) * 100).toFixed(2) : 0,
+      };
+      exportVaultSummary(vaultData);
+      showNotification("Vault summary exported successfully");
+    } catch (err) {
+      showNotification(err.message || "Export failed", "error");
+    }
+  };
+
+  const handleExportFullReport = () => {
+    try {
+      const vaultData = {
+        balance: vaultBalance,
+        totalPayroll: totalSalaries,
+        totalWithdrawn: totalWithdrawn,
+        activeEmployees: activeEmployees,
+        coverage: totalSalaries > 0 ? ((vaultBalance / totalSalaries) * 100).toFixed(2) : 0,
+      };
+      exportPayrollReport(employees, vaultData);
+      showNotification("Full payroll report exported successfully");
+    } catch (err) {
+      showNotification(err.message || "Export failed", "error");
     }
   };
 

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/stellar/go/clients/horizonclient"
 	"github.com/stellar/go/keypair"
 	"github.com/stellar/go/network"
@@ -298,6 +299,11 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 // ---------- Main ----------
 
 func main() {
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found or could not be loaded")
+	}
+
 	// Validate required env vars on startup
 	if os.Getenv("STELLAR_SOURCE_SECRET") == "" {
 		log.Fatal("❌ STELLAR_SOURCE_SECRET env var is required. Set it in your .env file.")

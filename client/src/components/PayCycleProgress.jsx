@@ -13,13 +13,14 @@ const PayCycleProgress = ({ lastWithdrawalDate }) => {
   useEffect(() => {
     const calculateTimeRemaining = () => {
       const now = new Date();
-      
-      let nextPayday = new Date(now.getFullYear(), now.getMonth(), 15);
+    
+      let nextPayday;
+
       if (now.getDate() > 15) {
-        nextPayday = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        nextPayday = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       }
-      if (now > nextPayday) {
-        nextPayday = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+      else {
+        nextPayday = new Date(now.getFullYear(), now.getMonth(), 15);
       }
 
       const timeDiff = nextPayday - now;
