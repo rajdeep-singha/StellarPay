@@ -5,6 +5,8 @@ import {
   getVaultBalance,
   getEmployeeDetails,
   releaseRemainingSalary,
+  deactivateEmployee,
+  reactivateEmployee,
   CONTRACTS,
 } from "../services/sorobanService";
 import {
@@ -23,6 +25,7 @@ const EmployerDashboard = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [releasingId, setReleasingId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [notification, setNotification] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -87,6 +90,30 @@ const EmployerDashboard = () => {
       showNotification(err.message || "Deposit failed. Please try again.", "error");
     } finally {
       setIsDepositing(false);
+    }
+  };
+
+  const handleToggleActive = async (employee) => {
+    if (!isConnected) return showNotification("Connect your wallet first", "error");
+    setTogglingId(employee.id);
+    try {
+      if (employee.status === "active") {
+        await deactivateEmployee(walletAddress, employee.id);
+        setEmployees((prev) =>
+          prev.map((e) => e.id === employee.id ? { ...e, status: "inactive" } : e)
+        );
+        showNotification(`${employee.name} has been deactivated.`);
+      } else {
+        await reactivateEmployee(walletAddress, employee.id);
+        setEmployees((prev) =>
+          prev.map((e) => e.id === employee.id ? { ...e, status: "active" } : e)
+        );
+        showNotification(`${employee.name} has been reactivated.`);
+      }
+    } catch (err) {
+      showNotification(err.message || "Failed to update employee status.", "error");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -272,7 +299,7 @@ const EmployerDashboard = () => {
                   ) : (
                     <div className="space-y-3">
                       {employees.slice(0, 3).map((emp) => (
-                        <EmployeeRow key={emp.id} employee={emp} onRelease={handleReleaseSalary} isReleasing={releasingId === emp.id} compact />
+                        <EmployeeRow key={emp.id} employee={emp} onRelease={handleReleaseSalary} isReleasing={releasingId === emp.id} onToggle={handleToggleActive} isToggling={togglingId === emp.id} compact />
                       ))}
                     </div>
                   )}
@@ -293,7 +320,7 @@ const EmployerDashboard = () => {
                 ) : (
                   <div className="divide-y divide-white/[0.05]">
                     {employees.map((emp) => (
-                      <EmployeeRow key={emp.id} employee={emp} onRelease={handleReleaseSalary} isReleasing={releasingId === emp.id} onSelect={setSelectedEmployee} />
+                      <EmployeeRow key={emp.id} employee={emp} onRelease={handleReleaseSalary} isReleasing={releasingId === emp.id} onToggle={handleToggleActive} isToggling={togglingId === emp.id} onSelect={setSelectedEmployee} />
                     ))}
                   </div>
                 )}
@@ -388,9 +415,10 @@ const StatCard = ({ icon, label, value, accent }) => {
   );
 };
 
-const EmployeeRow = ({ employee, onRelease, isReleasing, compact, onSelect }) => {
+const EmployeeRow = ({ employee, onRelease, isReleasing, compact, onSelect, onToggle, isToggling }) => {
   const remaining = employee.salary - employee.withdrawn;
   const progress = employee.salary > 0 ? (employee.withdrawn / employee.salary) * 100 : 0;
+  const isActive = employee.status === "active";
   return (
     <div className={`flex items-center gap-4 ${compact ? "py-3" : "px-6 py-4"} hover:bg-white/[0.02] transition-colors ${onSelect ? "cursor-pointer" : ""}`}
       onClick={() => onSelect && onSelect(employee)}>
@@ -400,7 +428,7 @@ const EmployeeRow = ({ employee, onRelease, isReleasing, compact, onSelect }) =>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-white text-sm font-medium truncate">{employee.name}</p>
-          <span className={`px-1.5 py-0.5 rounded text-xs ${employee.status === "active" ? "bg-emerald-400/10 text-emerald-400" : "bg-gray-500/10 text-gray-500"}`}>{employee.status}</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${isActive ? "bg-emerald-400/10 text-emerald-400" : "bg-gray-500/10 text-gray-500"}`}>{employee.status}</span>
         </div>
         {!compact && <p className="text-gray-600 text-xs font-mono truncate mt-0.5">{employee.walletAddress.slice(0, 12)}...</p>}
         <div className="flex items-center gap-2 mt-1.5">
@@ -415,6 +443,20 @@ const EmployeeRow = ({ employee, onRelease, isReleasing, compact, onSelect }) =>
           <p className="text-white text-sm font-medium">{employee.salary.toLocaleString()} XLM</p>
           <p className="text-gray-600 text-xs mt-0.5">{remaining.toLocaleString()} remaining</p>
         </div>
+      )}
+      {onToggle && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(employee); }}
+          disabled={isToggling}
+          className={`shrink-0 px-3 py-1.5 rounded-lg border text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+            isActive
+              ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
+              : "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+          }`}>
+          {isToggling ? (
+            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+          ) : isActive ? "Deactivate" : "Reactivate"}
+        </button>
       )}
       <button onClick={(e) => { e.stopPropagation(); onRelease(employee); }} disabled={isReleasing || remaining <= 0}
         className="shrink-0 px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 text-xs hover:bg-pink-400/10 hover:border-pink-400/30 hover:text-pink-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">

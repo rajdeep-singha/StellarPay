@@ -31,6 +31,8 @@ pub enum ContractError {
     InvalidAmount = 7,
     /// No remaining salary to release.
     NoRemainingSalary = 8,
+    /// The employee account has been deactivated.
+    EmployeeInactive = 9,
 }
 
 // ============================================================
@@ -53,6 +55,7 @@ pub struct EmployeeDetails {
     pub wallet: Address,
     pub rem_salary: u128,
     pub salary_token: Address,
+    pub active: bool,
 }
 
 #[contracttype]
@@ -193,6 +196,7 @@ impl EarlyWageContract {
                 wallet: wallet.clone(),
                 rem_salary: salary,
                 salary_token,
+                active: true,
             },
         );
         wallet_map.set(wallet.clone(), emp_id);
@@ -202,7 +206,7 @@ impl EarlyWageContract {
         e.storage().instance().set(&EMP_COUNT, &emp_id);
 
         e.events()
-            .publish((symbol_short!("employee"), symbol_short!("registered")), (emp_id, wallet));
+            .publish((symbol_short!("employee"), symbol_short!("reg")), (emp_id, wallet));
 
         Ok(emp_id)
     }
@@ -279,6 +283,11 @@ impl EarlyWageContract {
 
         let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
 
+        // Reject advances for deactivated employees
+        if !emp.active {
+            return Err(ContractError::EmployeeInactive);
+        }
+
         // Authorization: only the employee can request their own advance
         emp.wallet.require_auth();
 
@@ -349,6 +358,77 @@ impl EarlyWageContract {
         emp_map.set(emp_id, emp);
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        Ok(())
+    }
+
+    // --------------------------------------------------------
+    // Employee Lifecycle Management (admin only)
+    // --------------------------------------------------------
+
+    /// Deactivate an employee — blocks future advance requests.
+    pub fn deactivate_employee(e: Env, emp_id: u128) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
+
+        let mut emp_map: Map<u128, EmployeeDetails> = e
+            .storage()
+            .instance()
+            .get(&EMP_DETAILS)
+            .unwrap_or(Map::new(&e));
+
+        let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
+        emp.active = false;
+        emp_map.set(emp_id, emp);
+        e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        e.events()
+            .publish((symbol_short!("employee"), symbol_short!("deactiv")), emp_id);
+
+        Ok(())
+    }
+
+    /// Reactivate a previously deactivated employee.
+    pub fn reactivate_employee(e: Env, emp_id: u128) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
+
+        let mut emp_map: Map<u128, EmployeeDetails> = e
+            .storage()
+            .instance()
+            .get(&EMP_DETAILS)
+            .unwrap_or(Map::new(&e));
+
+        let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
+        emp.active = true;
+        emp_map.set(emp_id, emp);
+        e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        e.events()
+            .publish((symbol_short!("employee"), symbol_short!("reactiv")), emp_id);
+
+        Ok(())
+    }
+
+    /// Update an employee's salary for the current cycle. Admin only.
+    pub fn update_salary(e: Env, emp_id: u128, new_salary: u128) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
+
+        if new_salary == 0 {
+            return Err(ContractError::InvalidAmount);
+        }
+
+        let mut emp_map: Map<u128, EmployeeDetails> = e
+            .storage()
+            .instance()
+            .get(&EMP_DETAILS)
+            .unwrap_or(Map::new(&e));
+
+        let mut emp = emp_map.get(emp_id).ok_or(ContractError::EmployeeNotFound)?;
+        emp.rem_salary = new_salary;
+        emp_map.set(emp_id, emp);
+        e.storage().instance().set(&EMP_DETAILS, &emp_map);
+
+        e.events()
+            .publish((symbol_short!("salary"), symbol_short!("updated")), (emp_id, new_salary));
 
         Ok(())
     }
