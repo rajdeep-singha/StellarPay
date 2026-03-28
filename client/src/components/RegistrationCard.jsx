@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
-import {  registerEmployee } from "../services/sorobanService";//getEmployeeWithWA
+import { registerEmployee, getEmployeeByWallet } from "../services/sorobanService";
 import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
@@ -37,7 +37,7 @@ const RegistrationCard = ({ onSuccess }) => {
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
-    }
+    };
 
     const handleSubmit = async (e) => {
         // user registration is handled here
@@ -55,18 +55,20 @@ const RegistrationCard = ({ onSuccess }) => {
 
             // Fast & Safe Recursive Strategy: The blockchain takes a few seconds to sync.
             // We recursively poll the network without blocking the main event thread.
+            // Uses the new two-step query pattern: wallet → emp_id → employee details
+            // Replaces the removed getEmployeeWithWA function (issue #18)
             const safeSyncProfile = async (attempts = 3) => {
-                const data = await getEmployeeWithWA(walletAddress);
-                if (data) return data; // Success! Sync caught up.
+                const result = await getEmployeeByWallet(walletAddress, walletAddress);
+                if (result) return result; // Success! Sync caught up.
                 if (attempts <= 0) throw new Error("Registration confirmed, but profile failed to sync.");
                 await new Promise(res => setTimeout(res, 2000)); // 2-second safe buffer
                 return safeSyncProfile(attempts - 1);
             };
 
-            const empData = await safeSyncProfile();
+            const { empId, details: empData } = await safeSyncProfile();
 
             setEmpData({
-                empId: empData?.empId || null,
+                empId: empId || null,
                 salary: Number(form.salary),
                 email: form.email,
                 isRegistered: true,
@@ -77,15 +79,18 @@ const RegistrationCard = ({ onSuccess }) => {
             // Check if the Blockchain rejected it because we are ALREADY registered
             if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
                 try {
-                    const existingData = await getEmployeeWithWA(walletAddress);
-                    setEmpData({
-                        empId: existingData?.empId || null,
-                        salary: existingData.rem_salary / 10000000,
-                        email: existingData.email,
-                        isRegistered: true, // Force Zustand to see us!
-                    });
-                    if (onSuccess) onSuccess(); // Notify HomePage
-                    return; // Crucial early exit
+                    const result = await getEmployeeByWallet(walletAddress, walletAddress);
+                    if (result) {
+                        const { empId, details: existingData } = result;
+                        setEmpData({
+                            empId: empId || null,
+                            salary: existingData.rem_salary / 10000000,
+                            email: existingData.email,
+                            isRegistered: true, // Force Zustand to see us!
+                        });
+                        if (onSuccess) onSuccess(); // Notify HomePage
+                        return; // Crucial early exit
+                    }
                 } catch (readErr) {
                     console.error("Failed to fetch existing profile:", readErr);
                 }
@@ -93,11 +98,10 @@ const RegistrationCard = ({ onSuccess }) => {
 
             console.error("CRITICAL REGISTRATION ERROR CAUGHT IN UI:", error);
             setError(error.message || "An error occurred during registration. Please try again.");
-        }
-        finally {
+        } finally {
             setIsLoading(false);
         }
-    }
+    };
 
 
     // Modal is controlled by HomePage state now
@@ -159,9 +163,8 @@ const RegistrationCard = ({ onSuccess }) => {
                     </div>
                 </Card>
             </div>
-
         </>
-    )
-}
+    );
+};
 
 export default RegistrationCard;

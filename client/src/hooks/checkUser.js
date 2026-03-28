@@ -1,4 +1,4 @@
-import { registerEmployee } from "../services/sorobanService.js"; //getEmployeeWithWA,
+import { getEmployeeByWallet } from "../services/sorobanService.js";
 import { useCallback } from "react";
 import { useEmployeeStore } from "../store/empStore.js";
 
@@ -6,7 +6,7 @@ import { useEmployeeStore } from "../store/empStore.js";
 //is registered or not in a system
 
 export function useCheckUser() {
-    //using zustand here 
+    //using zustand here
     //to manage state
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
@@ -18,14 +18,20 @@ export function useCheckUser() {
         }
 
         try {
-            setLoading(true)
-            const empData = await getEmployeeWithWA(address);
+            setLoading(true);
+            // Use the new two-step query: wallet → emp_id → employee details
+            // Replaces the removed getEmployeeWithWA function (issue #18)
+            const result = await getEmployeeByWallet(address, address);
+            if (!result) {
+                return { isRegistered: false };
+            }
+            const { empId, details } = result;
             setEmpData({
-                empId: empData.empId,
-                salary: empData.rem_salary / 10000000,
-                email: empData.email,
-            })
-            return { isRegistered: true, empData };
+                empId,
+                salary: details.rem_salary / 10000000,
+                email: details.email,
+            });
+            return { isRegistered: true, empData: details };
 
         } catch (error) {
             console.error("checkUser error details:", error);
@@ -40,11 +46,10 @@ export function useCheckUser() {
             }
 
             return { isRegistered: false };
-        }
-        finally {
+        } finally {
             setLoading(false);
         }
     }, []);
 
-    return { checkUser }
+    return { checkUser };
 }
