@@ -185,9 +185,11 @@ const HomePage = () => {
       <header className="w-full border-b border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#0a0a0a]" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" />
+            <div className="w-[38px] h-[38px] rounded-lg bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center">
+              <svg className="w-6 h-6" viewBox="0 0 80 80" fill="none">
+                <ellipse cx="40" cy="40" rx="35" ry="14" transform="rotate(-30 40 40)" stroke="rgba(255,255,255,0.5)" strokeWidth="3" />
+                <path d="M48 24C48 24 44 20 36 22C28 24 26 30 30 34C34 38 46 38 50 42C54 46 50 54 42 56C34 58 28 54 28 54" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none" />
+                <circle cx="58" cy="26" r="3.5" fill="white" />
               </svg>
             </div>
             <span className="text-xl font-semibold text-white">StellarPay</span>
@@ -255,23 +257,25 @@ const HomePage = () => {
       <section className="max-w-7xl mx-auto px-6 py-16 md:py-24">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div>
+            {/* Stellar badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-400/10 border border-pink-400/20 mb-6">
+              <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+              <span className="text-xs text-pink-400 font-medium">Built on Stellar Network</span>
+            </div>
+
             <h1 className="text-5xl md:text-6xl font-bold leading-tight">
               <span className="underline decoration-2 underline-offset-8">Think</span>{" "}
-              <span className="bg-gradient-to-r from-pink-300 to-purple-300 px-3 py-1">Secure</span>
+              <span className="bg-gradient-to-r from-pink-300 to-purple-300 bg-clip-text text-transparent">Secure</span>
               <br />
               <span className="text-white">Pay Effortlessly</span>
             </h1>
 
-            <div className="w-full h-px bg-white/10 my-8" />
-
-            <p className="text-xl text-gray-400 leading-relaxed">
+            <p className="text-xl text-gray-400 leading-relaxed mt-8">
               Your Gateway to Instant Remittances, Early Wage Access and Seamless Payroll.
             </p>
 
-            <div className="w-full h-px bg-white/10 my-8" />
-
-            <div className="flex flex-wrap gap-4">
-              <button className="px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-all flex items-center gap-2">
+            <div className="flex flex-wrap gap-4 mt-8">
+              <button className="px-6 py-3 rounded-lg border border-white/15 text-white hover:bg-white/5 transition-all flex items-center gap-2">
                 Know More
                 <span className="text-gray-500">ⓘ</span>
               </button>
@@ -285,19 +289,37 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* Abstract Graphics */}
+          {/* Hero Orbital Graphic */}
           <div className="hidden lg:flex justify-center items-center relative">
             <div className="relative w-80 h-80">
-              <div className="absolute top-0 right-0 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-full" />
-              <div className="absolute top-12 left-0 w-8 h-8 bg-gray-500 rounded-full" />
-              <div className="absolute top-20 right-8 w-40 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full" />
-              <div className="absolute top-32 right-0 w-8 h-8 bg-gray-400 rounded-full" />
-              <div className="absolute top-40 left-8 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-500 rounded-full" />
-              <div className="absolute bottom-20 right-16 w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-full" />
-              <div className="absolute bottom-16 right-8 w-4 h-40 bg-gradient-to-b from-gray-300 to-gray-500 rounded-full" />
-              <div className="absolute bottom-24 right-0 w-4 h-28 bg-gradient-to-b from-gray-500 to-gray-700 rounded-full" />
-              <div className="absolute bottom-12 right-4 w-3 h-3 bg-white rounded-full" />
-              <div className="absolute top-28 right-20 w-3 h-3 bg-gray-400 rounded-full" />
+              <svg width="320" height="320" viewBox="0 0 320 320" fill="none" className="w-full h-full">
+                {/* Outer glow rings */}
+                <circle cx="160" cy="160" r="140" stroke="url(#heroGrad1)" strokeWidth="1" opacity="0.15" />
+                <circle cx="160" cy="160" r="105" stroke="url(#heroGrad1)" strokeWidth="1" opacity="0.08" />
+                {/* Orbital paths */}
+                <ellipse cx="160" cy="160" rx="125" ry="45" transform="rotate(-25 160 160)" stroke="url(#heroGrad1)" strokeWidth="2" opacity="0.25" />
+                <ellipse cx="160" cy="160" rx="115" ry="40" transform="rotate(15 160 160)" stroke="url(#heroGrad2)" strokeWidth="1.5" opacity="0.15" />
+                {/* Central S */}
+                <path d="M178 112C178 112 170 104 156 107C142 110 138 120 144 126C150 132 170 132 176 138C182 144 176 156 166 159C156 162 146 157 146 157" stroke="white" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+                {/* Orbiting dots */}
+                <circle cx="68" cy="120" r="5" fill="#f472b6" opacity="0.8" />
+                <circle cx="252" cy="200" r="4" fill="#a78bfa" opacity="0.8" />
+                <circle cx="208" cy="68" r="3" fill="#f9a8d4" opacity="0.6" />
+                <circle cx="112" cy="252" r="2.5" fill="#c4b5fd" opacity="0.5" />
+                {/* Payment flow lines */}
+                <path d="M100 180L125 155" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M195 155L220 130" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeLinecap="round" />
+                <defs>
+                  <linearGradient id="heroGrad1" x1="20" y1="20" x2="300" y2="300" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#f472b6" />
+                    <stop offset="1" stopColor="#a78bfa" />
+                  </linearGradient>
+                  <linearGradient id="heroGrad2" x1="300" y1="20" x2="20" y2="300" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#a78bfa" />
+                    <stop offset="1" stopColor="#f472b6" />
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
           </div>
         </div>
@@ -344,7 +366,7 @@ const HomePage = () => {
 
       {/* Features Grid */}
       <section id="features" className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           <FeatureCard
             icon={
               <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -364,6 +386,17 @@ const HomePage = () => {
             }
             title="Real-time Analytics"
             description="Track your earnings, withdrawals, and spending patterns in real-time."
+          />
+          <FeatureCard
+            icon={
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+            }
+            title="Instant Remittances"
+            description="Send money globally in seconds via Stellar. Fast, low-cost transfers."
           />
         </div>
       </section>
@@ -444,9 +477,31 @@ const HomePage = () => {
       {/* Stats Section */}
       <section id="stats" className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard icon="📊" label="Fee Rate" value="1.25%" subtext="Per advance" />
-          <StatCard icon="⚡" label="Processing" value="~5 sec" subtext="Stellar network" />
-          <StatCard icon="🔒" label="Contract" value="Verified" subtext="Soroban smart contract" />
+          <StatCard
+            icon={
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 20V10M12 20V4M6 20v-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            }
+            label="Fee Rate" value="1.25%" subtext="Per advance"
+          />
+          <StatCard
+            icon={
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            }
+            label="Processing" value="~5 sec" subtext="Stellar network"
+          />
+          <StatCard
+            icon={
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+            }
+            label="Contract" value="Verified" subtext="Soroban smart contract"
+          />
         </div>
       </section>
 
@@ -512,7 +567,7 @@ const StatCard = ({ icon, label, value, subtext }) => (
         <p className="text-2xl font-bold text-white mt-1">{value}</p>
         <p className="text-gray-600 text-xs mt-1">{subtext}</p>
       </div>
-      <span className="text-2xl">{icon}</span>
+      <div className="text-gray-400">{icon}</div>
     </div>
   </div>
 );

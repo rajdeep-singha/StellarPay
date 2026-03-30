@@ -165,8 +165,12 @@ const EmployerDashboard = () => {
       <header className="w-full border-b border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#0a0a0a]" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" /></svg>
+            <div className="w-[38px] h-[38px] rounded-lg bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center">
+              <svg className="w-6 h-6" viewBox="0 0 80 80" fill="none">
+                <ellipse cx="40" cy="40" rx="35" ry="14" transform="rotate(-30 40 40)" stroke="rgba(255,255,255,0.5)" strokeWidth="3" />
+                <path d="M48 24C48 24 44 20 36 22C28 24 26 30 30 34C34 38 46 38 50 42C54 46 50 54 42 56C34 58 28 54 28 54" stroke="white" strokeWidth="4" strokeLinecap="round" fill="none" />
+                <circle cx="58" cy="26" r="3.5" fill="white" />
+              </svg>
             </div>
             <span className="text-xl font-semibold text-white">StellarPay</span>
             <span className="px-2 py-0.5 rounded-md bg-pink-400/10 border border-pink-400/20 text-pink-400 text-xs font-medium">Employer</span>

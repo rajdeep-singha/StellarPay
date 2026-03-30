@@ -10,12 +10,6 @@ function App() {
   const isOnEmployer = location.pathname.startsWith('/employer');
   const targetPath = isOnEmployer ? '/' : '/employer';
   const label = isOnEmployer ? 'Home' : 'Employer Dashboard';
-import TransactionHistory from './components/TransactionHistory';
-import { useWallet } from './hooks/useWallet';
-
-function App() {
-  const [view, setView] = useState('home');
-  const { transactions } = useWallet();
 
   return (
     <WalletProvider>
@@ -48,9 +42,6 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </WalletProvider>
-      {view === 'employer' ? <EmployerDashboard /> : <HomePage />}
-      <TransactionHistory transactions={transactions} />
-    </>
   );
 }
 
