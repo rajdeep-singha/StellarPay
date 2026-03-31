@@ -43,11 +43,10 @@ const HomePage = () => {
   const [notification, setNotification] = useState(null);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false); //to check if a user is registered or not 
-
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [isRegisteredUser, setIsRegisteredUser] = useState(false);
 
   const fetchEmployeeData = useCallback(async () => {
-    // this function uses hooks to check whether a user is registered or not;
     if (!walletAddress) return;
 
     try {
@@ -59,7 +58,7 @@ const HomePage = () => {
         return;
       }
 
-      // If registered, hide the modal forcefully and load scaled salary
+      setIsRegisteredUser(true);
       setShowRegisterModal(false);
 
       const scaledSalary = empData?.rem_salary
@@ -69,6 +68,8 @@ const HomePage = () => {
 
     } catch (error) {
       console.error("Error fetching employee data in HomePage:", error);
+      // Contract unreachable or not configured — show registration choice
+      setShowRegisterModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -472,8 +473,10 @@ const HomePage = () => {
         <RegistrationCard
           onSuccess={() => {
             setShowRegisterModal(false);
-            fetchEmployeeData();
+            setIsRegisteredUser(true);
+            showNotification("Welcome to StellarPay! Your account is ready.");
           }}
+          onSkip={() => setShowRegisterModal(false)}
         />
       )}
 

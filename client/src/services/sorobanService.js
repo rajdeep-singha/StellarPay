@@ -327,6 +327,51 @@ export async function getRemainingSalary(publicKey, empId) {
   }
 }
 
+/**
+ * Look up an employee record by their wallet address via contract simulation.
+ * Returns { empId, rem_salary, email } or throws if not found.
+ */
+export async function getEmployeeWithWA(walletAddress) {
+  try {
+    const account = await server.getAccount(walletAddress);
+    const contract = new Contract(CONTRACT_ADDRESS_WAGE);
+    const operation = contract.call("get_employee_by_wallet", addressToScVal(walletAddress));
+
+    const transaction = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(operation)
+      .setTimeout(300)
+      .build();
+
+    const simResult = await server.simulateTransaction(transaction);
+
+    if (!simResult.result) {
+      throw new Error("Wallet not registered");
+    }
+
+    const native = scValToNative(simResult.result.retval);
+
+    // Contract returns a map/struct — normalise field names defensively
+    return {
+      empId: native.emp_id ?? native.empId ?? null,
+      rem_salary: native.rem_salary ?? native.salary ?? 0,
+      email: native.email ?? "",
+    };
+  } catch (error) {
+    // Re-throw with a recognisable message so callers can detect "not registered"
+    if (
+      error.message?.includes("WasmVm") ||
+      error.message?.includes("InvalidAction") ||
+      error.message?.includes("simulation failed")
+    ) {
+      throw new Error("Wallet not registered");
+    }
+    throw error;
+  }
+}
+
 export async function releaseRemainingSalary(publicKey, empId, tokenAddress = CONTRACT_ADDRESS_TOKEN, newSalary) {
   const args = [
     numberToU128(empId),
@@ -369,6 +414,7 @@ export async function getTransactionHistory(publicKey) {
 
 export default {
   registerEmployee,
+  getEmployeeWithWA,
   depositToVault,
   requestAdvance,
   getVaultBalance,

@@ -1,19 +1,20 @@
 import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
-import {  registerEmployee } from "../services/sorobanService";//getEmployeeWithWA
+import {  registerEmployee, getEmployeeWithWA } from "../services/sorobanService";
 import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
 import InputField from "./InputField";
 
 
-const RegistrationCard = ({ onSuccess }) => {
+const RegistrationCard = ({ onSuccess, onSkip }) => {
     const { walletAddress } = useWalletContext();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
     const isRegistered = useEmployeeStore((state) => state.isRegistered);
     // Remove global loading states that get stuck on app init
     const [isLoading, setIsLoading] = useState(false);
+    const [successMsg, setSuccessMsg] = useState("");
 
     const [form, setForm] = useState({
         salary: "",
@@ -53,26 +54,16 @@ const RegistrationCard = ({ onSuccess }) => {
                 return;
             }
 
-            // Fast & Safe Recursive Strategy: The blockchain takes a few seconds to sync.
-            // We recursively poll the network without blocking the main event thread.
-            const safeSyncProfile = async (attempts = 3) => {
-                const data = await getEmployeeWithWA(walletAddress);
-                if (data) return data; // Success! Sync caught up.
-                if (attempts <= 0) throw new Error("Registration confirmed, but profile failed to sync.");
-                await new Promise(res => setTimeout(res, 2000)); // 2-second safe buffer
-                return safeSyncProfile(attempts - 1);
-            };
-
-            const empData = await safeSyncProfile();
-
+            // Store what we know locally — no need to re-query the contract immediately
             setEmpData({
-                empId: empData?.empId || null,
+                empId: null,
                 salary: Number(form.salary),
                 email: form.email,
                 isRegistered: true,
             });
 
-            onSuccess?.();
+            setSuccessMsg("Registration successful! Redirecting to dashboard...");
+            setTimeout(() => onSuccess?.(), 1500);
         } catch (error) {
             // Check if the Blockchain rejected it because we are ALREADY registered
             if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
@@ -107,14 +98,25 @@ const RegistrationCard = ({ onSuccess }) => {
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 sm:p-6">
                 <Card className="w-full max-w-md mx-auto">
                     {/* Header */}
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-                            <span className="text-lg">✦</span>
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                <span className="text-lg">✦</span>
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-semibold text-white">Register Account</h2>
+                                <p className="text-gray-500 text-sm">Set up your employee profile</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-xl font-semibold text-white">Register Account</h2>
-                            <p className="text-gray-500 text-sm">Set up your employee profile</p>
-                        </div>
+                        {onSkip && (
+                            <button
+                                onClick={onSkip}
+                                className="text-gray-500 hover:text-gray-300 transition-colors text-sm underline"
+                                title="Go to dashboard without registering"
+                            >
+                                Skip →
+                            </button>
+                        )}
                     </div>
 
                     <div className="w-full h-px bg-white/10 mb-8" />
@@ -148,13 +150,27 @@ const RegistrationCard = ({ onSuccess }) => {
                         </div>
 
                         <div className="flex flex-col gap-3 mt-2">
+                            {successMsg && (
+                                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm text-center">
+                                    ✓ {successMsg}
+                                </div>
+                            )}
                             <Button
                                 onClick={handleSubmit}
                                 isLoading={isLoading}
-                                disabled={!form.email || !form.salary}
+                                disabled={!form.email || !form.salary || !!successMsg}
                             >
                                 Register ✦
                             </Button>
+                            {onSkip && (
+                                <button
+                                    type="button"
+                                    onClick={onSkip}
+                                    className="text-gray-500 hover:text-gray-300 transition-colors text-sm text-center py-1"
+                                >
+                                    Already registered? Go to Dashboard →
+                                </button>
+                            )}
                         </div>
                     </div>
                 </Card>

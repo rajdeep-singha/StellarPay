@@ -1,13 +1,10 @@
-import { registerEmployee } from "../services/sorobanService.js"; //getEmployeeWithWA,
+import { getEmployeeWithWA } from "../services/sorobanService.js";
 import { useCallback } from "react";
 import { useEmployeeStore } from "../store/empStore.js";
 
-//creating a custom hook to check if a user
-//is registered or not in a system
+const CONTRACT_WAGE = import.meta.env.VITE_CONTRACT_WAGE;
 
 export function useCheckUser() {
-    //using zustand here 
-    //to manage state
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
     const setLoading = useEmployeeStore((state) => state.setLoading);
@@ -17,14 +14,20 @@ export function useCheckUser() {
             return { isRegistered: false };
         }
 
+        // No contract configured — skip check, treat as registered so dashboard loads
+        if (!CONTRACT_WAGE) {
+            console.warn("VITE_CONTRACT_WAGE not set — skipping registration check.");
+            return { isRegistered: true, empData: null };
+        }
+
         try {
-            setLoading(true)
+            setLoading(true);
             const empData = await getEmployeeWithWA(address);
             setEmpData({
                 empId: empData.empId,
                 salary: empData.rem_salary / 10000000,
                 email: empData.email,
-            })
+            });
             return { isRegistered: true, empData };
 
         } catch (error) {
@@ -36,15 +39,16 @@ export function useCheckUser() {
                 error.message?.includes("Wallet not registered");
 
             if (!isNotRegistered) {
-                console.error("checkUser caught an unexpected bug, NOT a simple 'wallet missing' error:", error);
+                console.error("checkUser caught an unexpected error:", error);
+                // Unknown error (network, RPC down, etc.) — don't block the user
+                return { isRegistered: true, empData: null };
             }
 
             return { isRegistered: false };
-        }
-        finally {
+        } finally {
             setLoading(false);
         }
     }, []);
 
-    return { checkUser }
+    return { checkUser };
 }
