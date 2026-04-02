@@ -202,7 +202,7 @@ impl EarlyWageContract {
         e.storage().instance().set(&EMP_COUNT, &emp_id);
 
         e.events()
-            .publish((symbol_short!("employee"), symbol_short!("registered")), (emp_id, wallet));
+            .publish((symbol_short!("employee"), symbol_short!("emp_added")), (emp_id, wallet));
 
         Ok(emp_id)
     }
@@ -298,7 +298,7 @@ impl EarlyWageContract {
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
 
         e.events()
-            .publish((symbol_short!("advance"), symbol_short!("requested")), (emp_id, amount, fee, final_amount, token));
+            .publish((symbol_short!("advance"), symbol_short!("req_adv")), (emp_id, amount, fee, final_amount, token));
 
         Ok(final_amount)
     }
@@ -341,7 +341,7 @@ impl EarlyWageContract {
         );
 
         e.events().publish(
-            (symbol_short!("release"),symbol_short!("released")),
+            (symbol_short!("release"),symbol_short!("released_")),
             (emp_id, emp.rem_salary, token),
         );
 
