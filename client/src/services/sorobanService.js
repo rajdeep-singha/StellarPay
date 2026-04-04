@@ -422,6 +422,27 @@ export async function releaseRemainingSalary(publicKey, empId, tokenAddress = CO
   return submitTransaction(signedTx);
 }
 
+export async function deactivateEmployee(publicKey, empId) {
+  const args = [numberToU128(empId)];
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "deactivate_employee", args);
+  const signedTx = await signWithFreighter(preparedTx);
+  return submitTransaction(signedTx);
+}
+
+export async function reactivateEmployee(publicKey, empId) {
+  const args = [numberToU128(empId)];
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "reactivate_employee", args);
+  const signedTx = await signWithFreighter(preparedTx);
+  return submitTransaction(signedTx);
+}
+
+export async function updateSalary(publicKey, empId, newSalary) {
+  const args = [numberToU128(empId), numberToU128(newSalary)];
+  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "update_salary", args);
+  const signedTx = await signWithFreighter(preparedTx);
+  return submitTransaction(signedTx);
+}
+
 export const CONTRACTS = {
   TOKEN: CONTRACT_ADDRESS_TOKEN,
   WAGE: CONTRACT_ADDRESS_WAGE,
