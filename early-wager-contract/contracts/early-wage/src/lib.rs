@@ -31,6 +31,10 @@ pub enum ContractError {
     InvalidAmount = 7,
     /// No remaining salary to release.
     NoRemainingSalary = 8,
+    /// The requested vault does not exist.
+    VaultNotFound = 9,
+    /// The vault has insufficient balance for the operation.
+    InsufficientVaultBalance = 10,
 }
 
 // ============================================================
@@ -42,6 +46,9 @@ const EMP_DETAILS: Symbol = symbol_short!("EMP_DET");
 const WALLET_TO_ID: Symbol = symbol_short!("wal2id");
 const INITIALIZED: Symbol = symbol_short!("INIT");
 const SUPPORTED_TOKENS: Symbol = symbol_short!("SUP_TOK");
+const VAULT_COUNT: Symbol = symbol_short!("V_COUNT");
+const VAULT_DETAILS: Symbol = symbol_short!("V_DET");
+const VAULT_BALANCE: Symbol = symbol_short!("V_BAL");
 
 // ============================================================
 // Data Types
@@ -50,9 +57,18 @@ const SUPPORTED_TOKENS: Symbol = symbol_short!("SUP_TOK");
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmployeeDetails {
     pub emp_id: u128,
+    pub vault_id: u128,
     pub wallet: Address,
     pub rem_salary: u128,
     pub salary_token: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VaultDetails {
+    pub vault_id: u128,
+    pub admin: Address,
+    pub name: Symbol,
 }
 
 #[contracttype]
@@ -86,6 +102,7 @@ impl EarlyWageContract {
         e.storage().instance().set(&ADMIN, &admin);
         e.storage().instance().set(&INITIALIZED, &true);
         e.storage().instance().set(&EMP_COUNT, &0u128);
+        e.storage().instance().set(&VAULT_COUNT, &0u128);
 
         e.events()
             .publish((symbol_short!("init"),), admin.clone());
@@ -154,15 +171,25 @@ impl EarlyWageContract {
     // Employee Management
     // --------------------------------------------------------
 
-    /// Register a new employee. Employees can self-register.
+    /// Register a new employee and link them to a specific vault.
+    /// Only the vault admin or global admin can register employees.
     pub fn register_employee(
         e: Env,
+        vault_id: u128,
         wallet: Address,
         salary: u128,
         salary_token: Address,
     ) -> Result<u128, ContractError> {
-        // Allow self-registration - no admin check needed
-        // Self::require_admin(&e)?;
+        let vault = Self::get_vault_details(e.clone(), vault_id)?;
+        
+        // Authorization: either global admin or vault admin
+        if let Ok(admin) = e.storage().instance().get::<_, Address>(&ADMIN).ok_or(ContractError::NotInitialized) {
+            if !e.auths().iter().any(|a| a.address_authorized(&admin)) {
+                vault.admin.require_auth();
+            }
+        } else {
+            vault.admin.require_auth();
+        }
 
         if salary == 0 {
             return Err(ContractError::InvalidAmount);
@@ -191,6 +218,7 @@ impl EarlyWageContract {
             emp_id,
             EmployeeDetails {
                 emp_id,
+                vault_id,
                 wallet: wallet.clone(),
                 rem_salary: salary,
                 salary_token,
@@ -209,13 +237,46 @@ impl EarlyWageContract {
     }
 
     // --------------------------------------------------------
-    // Vault / Deposit
+    // Vault Management
     // --------------------------------------------------------
 
-    /// Deposit tokens into the contract vault. The caller must
-    /// authorize the transfer.
+    /// Create a new vault with a specific admin and name.
+    pub fn create_vault(e: Env, admin: Address, name: Symbol) -> Result<u128, ContractError> {
+        Self::require_admin(&e)?;
+
+        let mut vault_id: u128 = e.storage().instance().get(&VAULT_COUNT).unwrap_or(0);
+        vault_id += 1;
+
+        let mut vault_map: Map<u128, VaultDetails> = e
+            .storage()
+            .instance()
+            .get(&VAULT_DETAILS)
+            .unwrap_or(Map::new(&e));
+
+        vault_map.set(
+            vault_id,
+            VaultDetails {
+                vault_id,
+                admin: admin.clone(),
+                name,
+            },
+        );
+
+        e.storage().instance().set(&VAULT_DETAILS, &vault_map);
+        e.storage().instance().set(&VAULT_COUNT, &vault_id);
+
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("created")),
+            (vault_id, admin, name),
+        );
+
+        Ok(vault_id)
+    }
+
+    /// Deposit tokens into a specific vault.
     pub fn deposit_to_vault(
         e: Env,
+        vault_id: u128,
         from: Address,
         amount: i128,
         token: Address,
@@ -226,26 +287,90 @@ impl EarlyWageContract {
             return Err(ContractError::InvalidAmount);
         }
 
+        // Verify vault exists
+        let _vault = Self::get_vault_details(e.clone(), vault_id)?;
+
         let client = token::Client::new(&e, &token);
-        // Check user balance before cross-contract deposit
-        if client.balance(&from) < amount {
-            return Err(ContractError::InvalidAmount);
-        }
         client.transfer(&from, &e.current_contract_address(), &amount);
 
-        e.events()
-            .publish((symbol_short!("vault"), symbol_short!("deposit")), (from, amount, token));
+        // Update internal vault balance
+        let balance_key = (VAULT_BALANCE, vault_id, token.clone());
+        let current_balance: i128 = e.storage().instance().get(&balance_key).unwrap_or(0);
+        e.storage()
+            .instance()
+            .set(&balance_key, &(current_balance + amount));
+
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("deposit")),
+            (vault_id, from, amount, token),
+        );
 
         Ok(())
     }
 
+    /// Withdraw tokens from a vault. Only the vault admin can call this.
+    pub fn withdraw_from_vault(
+        e: Env,
+        vault_id: u128,
+        to: Address,
+        amount: i128,
+        token: Address,
+    ) -> Result<(), ContractError> {
+        let vault = Self::get_vault_details(e.clone(), vault_id)?;
+        vault.admin.require_auth();
+
+        if amount <= 0 {
+            return Err(ContractError::InvalidAmount);
+        }
+
+        let balance_key = (VAULT_BALANCE, vault_id, token.clone());
+        let current_balance: i128 = e.storage().instance().get(&balance_key).unwrap_or(0);
+
+        if current_balance < amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
+
+        let client = token::Client::new(&e, &token);
+        client.transfer(&e.current_contract_address(), &to, &amount);
+
+        e.storage()
+            .instance()
+            .set(&balance_key, &(current_balance - amount));
+
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("withdraw")),
+            (vault_id, to, amount, token),
+        );
+
+        Ok(())
+    }
+
+    /// Get details of a vault.
+    pub fn get_vault_details(e: Env, vault_id: u128) -> Result<VaultDetails, ContractError> {
+        let vault_map: Map<u128, VaultDetails> = e
+            .storage()
+            .instance()
+            .get(&VAULT_DETAILS)
+            .unwrap_or(Map::new(&e));
+        vault_map.get(vault_id).ok_or(ContractError::VaultNotFound)
+    }
+
+    /// Get internal balance of a specific vault for a token.
+    pub fn get_vault_balance(e: Env, vault_id: u128, token: Address) -> i128 {
+        let balance_key = (VAULT_BALANCE, vault_id, token);
+        e.storage().instance().get(&balance_key).unwrap_or(0)
+    }
+
     /// Get vault balances for multiple tokens.
-    pub fn vault_balances_multi(e: Env, tokens: Vec<Address>) -> Map<Address, i128> {
+    pub fn vault_balances_multi(
+        e: Env,
+        vault_id: u128,
+        tokens: Vec<Address>,
+    ) -> Map<Address, i128> {
         let mut balances: Map<Address, i128> = Map::new(&e);
         for i in 0..tokens.len() {
             let token_addr = tokens.get(i).unwrap();
-            let client = token::Client::new(&e, &token_addr);
-            let balance = client.balance(&e.current_contract_address());
+            let balance = Self::get_vault_balance(e.clone(), vault_id, token_addr.clone());
             balances.set(token_addr, balance);
         }
         balances
@@ -290,16 +415,30 @@ impl EarlyWageContract {
         let fee = amount * 125 / 10000; // 1.25 %
         let final_amount = amount - fee;
 
+        // Check vault balance
+        let balance_key = (VAULT_BALANCE, emp.vault_id, token.clone());
+        let current_balance: i128 = e.storage().instance().get(&balance_key).unwrap_or(0);
+        if current_balance < amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
+
         let client = token::Client::new(&e, &token);
         client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
+
+        // Update vault balance
+        e.storage()
+            .instance()
+            .set(&balance_key, &(current_balance - amount));
 
         emp.rem_salary -= amount as u128;
         emp_map.set(emp_id, emp.clone());
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
 
-        e.events()
-            .publish((symbol_short!("advance"), symbol_short!("requested")), (emp_id, amount, fee, final_amount, token));
+        e.events().publish(
+            (symbol_short!("advance"), symbol_short!("requested")),
+            (emp_id, amount, fee, final_amount, token, emp.vault_id),
+        );
 
         Ok(final_amount)
     }
@@ -334,6 +473,13 @@ impl EarlyWageContract {
             return Err(ContractError::NoRemainingSalary);
         }
 
+        // Check vault balance
+        let balance_key = (VAULT_BALANCE, emp.vault_id, token.clone());
+        let current_balance: i128 = e.storage().instance().get(&balance_key).unwrap_or(0);
+        if current_balance < emp.rem_salary as i128 {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
+
         let client = token::Client::new(&e, &token);
         client.transfer(
             &e.current_contract_address(),
@@ -341,9 +487,14 @@ impl EarlyWageContract {
             &(emp.rem_salary as i128),
         );
 
+        // Update vault balance
+        e.storage()
+            .instance()
+            .set(&balance_key, &(current_balance - emp.rem_salary as i128));
+
         e.events().publish(
-            (symbol_short!("release"),symbol_short!("released")),
-            (emp_id, emp.rem_salary, token),
+            (symbol_short!("release"), symbol_short!("released")),
+            (emp_id, emp.rem_salary, token, emp.vault_id),
         );
 
         emp.rem_salary = salary;
