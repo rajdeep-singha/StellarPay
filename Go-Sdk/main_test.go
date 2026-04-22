@@ -199,7 +199,7 @@ func TestSendLumens_InvalidJSON(t *testing.T) {
 }
 
 func sendLumens(rr *httptest.ResponseRecorder, req *http.Request) {
-	panic("unimplemented")
+	sendAsset(rr, req)
 }
 
 func TestSendLumens_MissingRecipient(t *testing.T) {

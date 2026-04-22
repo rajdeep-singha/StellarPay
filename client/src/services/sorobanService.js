@@ -148,6 +148,48 @@ async function submitTransaction(signedTx) {
 }
 
 // ============================================
+// TOKEN BALANCE HELPERS
+// ============================================
+
+/**
+ * Get token balance for a specific token address
+ */
+export async function getTokenBalance(publicKey, tokenAddress) {
+  try {
+    if (tokenAddress === "native" || !tokenAddress) {
+      // Get XLM balance
+      const horizonUrl = `https://horizon-testnet.stellar.org/accounts/${publicKey}`;
+      const response = await fetch(horizonUrl);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch account balance");
+      }
+      
+      const accountData = await response.json();
+      const xlmBalance = accountData.balances.find(b => b.asset_type === "native");
+      return parseFloat(xlmBalance?.balance || 0);
+    } else {
+      // Get token balance
+      const horizonUrl = `https://horizon-testnet.stellar.org/accounts/${publicKey}`;
+      const response = await fetch(horizonUrl);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch account balance");
+      }
+      
+      const accountData = await response.json();
+      const tokenBalance = accountData.balances.find(b => 
+        b.asset_issuer === tokenAddress && b.asset_code !== "native"
+      );
+      return parseFloat(tokenBalance?.balance || 0);
+    }
+  } catch (error) {
+    console.error("Error fetching token balance:", error);
+    return 0;
+  }
+}
+
+// ============================================
 // MULTI-TOKEN WALLET BALANCES
 // ============================================
 
@@ -238,9 +280,17 @@ export async function registerEmployee(publicKey, walletAddress, salary, salaryT
 }
 
 export async function getAdmin() {
-  const preparedTx = await buildContractCall("GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", CONTRACT_ADDRESS_WAGE, "get_admin", []);
-  const signedTx = await signWithFreighter(preparedTx);
-  return submitTransaction(signedTx);
+  try {
+    if (!CONTRACT_ADDRESS_WAGE) {
+      throw new Error("Contract address not configured");
+    }
+    const preparedTx = await buildContractCall("GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", CONTRACT_ADDRESS_WAGE, "get_admin", []);
+    const signedTx = await signWithFreighter(preparedTx);
+    return submitTransaction(signedTx);
+  } catch (error) {
+    console.error("Error getting admin:", error);
+    throw error;
+  }
 }
 
 export async function depositToVault(publicKey, amount, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
@@ -261,48 +311,35 @@ export async function depositToVault(publicKey, amount, tokenAddress = CONTRACT_
 }
 
 export async function requestAdvance(publicKey, empId, amount, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
-  // Pre-flight check: Ensure the contract vault has enough balance to pay out
-  const vaultBalance = await getVaultBalance(publicKey, tokenAddress);
-  const fee = amount * 0.0125;
-  const netAmount = amount - fee;
-
-  if (vaultBalance < netAmount) {
-    throw new Error(`Contract has insufficient funds to pay this advance right now.`);
+  if (!publicKey || !empId || !amount) {
+    throw new Error("Missing required parameters: publicKey, empId, and amount are required");
+  }
+  
+  if (amount <= 0) {
+    throw new Error("Amount must be greater than zero");
   }
 
-  const args = [
-    numberToU128(empId),
-    numberToI128(amount),
-    addressToScVal(tokenAddress),
-  ];
-  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "request_advance", args);
-  const signedTx = await signWithFreighter(preparedTx);
-  return submitTransaction(signedTx);
-}
-
-export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
   try {
-    const account = await server.getAccount(publicKey);
-  const contract = getWageContract();
-    const operation = contract.call("vault_balance", addressToScVal(tokenAddress));
+    // Pre-flight check: Ensure the contract vault has enough balance to pay out
+    const vaultBalance = await getVaultBalance(publicKey, tokenAddress);
+    const fee = amount * 0.0125;
+    const netAmount = amount - fee;
 
-    const transaction = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(operation)
-      .setTimeout(300)
-      .build();
-
-    const simResult = await server.simulateTransaction(transaction);
-    if (simResult.result) {
-      const resultValue = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
-      return Number(resultValue.i128().lo().toString());
+    if (vaultBalance < netAmount) {
+      throw new Error(`Contract has insufficient funds to pay this advance right now.`);
     }
-    return 0;
+
+    const args = [
+      numberToU128(empId),
+      numberToI128(amount),
+      addressToScVal(tokenAddress),
+    ];
+    const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "request_advance", args);
+    const signedTx = await signWithFreighter(preparedTx);
+    return submitTransaction(signedTx);
   } catch (error) {
-    console.error("Error getting vault balance:", error);
-    return 0;
+    console.error("requestAdvance error:", error);
+    throw error;
   }
 }
 
@@ -412,14 +449,27 @@ export async function getRemainingSalary(publicKey, empId) {
 }
 
 export async function releaseRemainingSalary(publicKey, empId, tokenAddress = CONTRACT_ADDRESS_TOKEN, newSalary) {
-  const args = [
-    numberToU128(empId),
-    addressToScVal(tokenAddress),
-    numberToU128(newSalary),
-  ];
-  const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "release_remaining_salary", args);
-  const signedTx = await signWithFreighter(preparedTx);
-  return submitTransaction(signedTx);
+  if (!publicKey || !empId || !newSalary) {
+    throw new Error("Missing required parameters: publicKey, empId, and newSalary are required");
+  }
+  
+  if (newSalary <= 0) {
+    throw new Error("New salary must be greater than zero");
+  }
+
+  try {
+    const args = [
+      numberToU128(empId),
+      addressToScVal(tokenAddress),
+      numberToU128(newSalary),
+    ];
+    const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "release_remaining_salary", args);
+    const signedTx = await signWithFreighter(preparedTx);
+    return submitTransaction(signedTx);
+  } catch (error) {
+    console.error("releaseRemainingSalary error:", error);
+    throw error;
+  }
 }
 
 export const CONTRACTS = {
@@ -464,6 +514,7 @@ export default {
   getWalletTokenBalances,
   fetchExchangeRates,
   getTransactionHistory,
+  getTokenBalance,
   SUPPORTED_TOKENS,
   CONTRACTS,
 };
