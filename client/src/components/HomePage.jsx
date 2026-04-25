@@ -10,6 +10,7 @@ import WaitlistModal from "./WaitlistModal";
 import RegistrationCard from "./RegistrationCard";
 import { useEmployeeStore } from "../store/empStore";
 import { useCheckUser } from "../hooks/checkUser";
+import { upsertEmployeeProfile } from "../libs/supabase";
 
 
 const HomePage = () => {
@@ -34,6 +35,11 @@ const HomePage = () => {
 
   const employeeId = useEmployeeStore((state) => state.empId);
   const monthlySalary = useEmployeeStore((state) => state.salary);
+  const empName = useEmployeeStore((state) => state.name);
+  const empPosition = useEmployeeStore((state) => state.position);
+  const empDepartment = useEmployeeStore((state) => state.department);
+  const empEmail = useEmployeeStore((state) => state.email);
+  const setEmpData = useEmployeeStore((state) => state.setEmpData);
   const { checkUser } = useCheckUser();
 
   const [lastWithdrawalDate, setLastWithdrawalDate] = useState(null);
@@ -44,6 +50,9 @@ const HomePage = () => {
   const [showSendModal, setShowSendModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false); //to check if a user is registered or not 
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: "", position: "", department: "", email: "" });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
 
   const fetchEmployeeData = useCallback(async () => {
@@ -84,6 +93,46 @@ const HomePage = () => {
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const openProfileEdit = () => {
+    setProfileForm({
+      name: empName || "",
+      position: empPosition || "",
+      department: empDepartment || "",
+      email: empEmail || "",
+    });
+    setShowProfileEdit(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!walletAddress) return;
+    setIsSavingProfile(true);
+    try {
+      const result = await upsertEmployeeProfile({
+        walletAddress,
+        empId: employeeId,
+        name: profileForm.name,
+        position: profileForm.position,
+        department: profileForm.department,
+        email: profileForm.email,
+      });
+      if (!result.success) throw new Error(result.error);
+      setEmpData({
+        empId: employeeId,
+        salary: monthlySalary,
+        name: profileForm.name || empName,
+        position: profileForm.position || null,
+        department: profileForm.department || null,
+        email: profileForm.email || null,
+      });
+      setShowProfileEdit(false);
+      showNotification("Profile updated successfully");
+    } catch (err) {
+      showNotification(err.message || "Failed to save profile", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleWaitlistSuccess = (email) => {
@@ -430,8 +479,44 @@ const HomePage = () => {
           </div>
 
           {/* Pay Cycle Card */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 flex flex-col gap-6">
             <PayCycleProgress lastWithdrawalDate={lastWithdrawalDate} />
+
+            {/* Employee Profile Card */}
+            {isConnected && employeeId && (
+              <div className="rounded-2xl bg-[#111] border border-white/[0.08] p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">My Profile</h3>
+                  <button
+                    onClick={openProfileEdit}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400/30 to-purple-400/30 border border-white/10 flex items-center justify-center text-xl font-bold text-white">
+                    {(empName || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">{empName || `Employee #${employeeId}`}</p>
+                    <p className="text-gray-600 text-xs font-mono">{walletAddress ? `${walletAddress.slice(0, 8)}…${walletAddress.slice(-4)}` : ""}</p>
+                  </div>
+                </div>
+                <div className="space-y-0 rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
+                  {[
+                    { label: "Position", value: empPosition || "—", cls: empPosition ? "text-blue-300" : "text-gray-600" },
+                    { label: "Department", value: empDepartment || "—", cls: empDepartment ? "text-purple-300" : "text-gray-600" },
+                    { label: "Employee ID", value: `#${employeeId}`, cls: "text-gray-300" },
+                  ].map(({ label, value, cls }) => (
+                    <div key={label} className="flex justify-between px-4 py-2.5 border-b border-white/[0.06] last:border-0">
+                      <span className="text-gray-500 text-xs">{label}</span>
+                      <span className={`text-xs font-medium ${cls}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Transaction History */}
@@ -475,6 +560,86 @@ const HomePage = () => {
             fetchEmployeeData();
           }}
         />
+      )}
+
+      {/* Profile Edit Modal */}
+      {showProfileEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-4 rounded-2xl bg-[#111] border border-white/10 p-8">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white">My Profile</h3>
+                <p className="text-gray-500 text-sm mt-1">Update your profile information</p>
+              </div>
+              <button onClick={() => setShowProfileEdit(false)} className="p-2 rounded-lg hover:bg-white/5 text-gray-500">✕</button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {[
+                { key: "name", label: "Full Name", placeholder: "e.g. Jane Doe", type: "text" },
+                { key: "email", label: "Email", placeholder: "e.g. jane@company.com", type: "email" },
+              ].map(({ key, label, placeholder, type }) => (
+                <div key={key} className="flex flex-col gap-2">
+                  <label className="text-gray-500 text-xs uppercase tracking-wider">{label}</label>
+                  <input
+                    type={type}
+                    value={profileForm[key]}
+                    onChange={(e) => setProfileForm((p) => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-pink-500/50 transition-all text-sm"
+                  />
+                </div>
+              ))}
+
+              <div className="flex flex-col gap-2">
+                <label className="text-gray-500 text-xs uppercase tracking-wider">Position / Title</label>
+                <input
+                  type="text"
+                  list="emp-position-list"
+                  value={profileForm.position}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, position: e.target.value }))}
+                  placeholder="e.g. Software Engineer"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-pink-500/50 transition-all text-sm"
+                />
+                <datalist id="emp-position-list">
+                  {["Software Engineer", "Senior Engineer", "Lead Engineer", "Product Manager", "Designer", "Analyst", "Manager", "Director", "Coordinator", "Specialist"].map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-gray-500 text-xs uppercase tracking-wider">Department</label>
+                <select
+                  value={profileForm.department}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, department: e.target.value }))}
+                  className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-pink-500/50 transition-all text-sm appearance-none"
+                >
+                  <option value="">Select department...</option>
+                  {["Engineering", "Finance", "HR", "Marketing", "Operations", "Sales", "Design", "Legal", "Product"].map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+            >
+              {isSavingProfile ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving...
+                </>
+              ) : "Save Profile ✦"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Footer */}

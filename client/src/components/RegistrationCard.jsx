@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useEmployeeStore } from "../store/empStore";
 import { registerEmployee, getEmployeeWithWA } from "../services/sorobanService";
+import { upsertEmployeeProfile, getEmployeeProfile } from "../libs/supabase";
 import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
@@ -16,11 +17,15 @@ const RegistrationCard = ({ onSuccess }) => {
     const [isLoading, setIsLoading] = useState(false);
 
     const [form, setForm] = useState({
+        name: "",
+        email: "",
+        position: "",
+        department: "",
         salary: "",
-        email: ""
     });
 
     const [error, setErrors] = useState({
+        name: "",
         email: "",
         salary: "",
         general: "",
@@ -30,6 +35,9 @@ const RegistrationCard = ({ onSuccess }) => {
         const newErrors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+        if (!form.name || form.name.trim().length < 2) {
+            newErrors.name = "Please enter your full name";
+        }
         if (!form.email || !emailRegex.test(form.email)) {
             newErrors.email = "Please enter a valid email address";
         }
@@ -79,8 +87,20 @@ const RegistrationCard = ({ onSuccess }) => {
                 empId: empData?.empId || null,
                 salary: Number(form.salary),
                 email: form.email,
+                name: form.name.trim(),
+                position: form.position.trim() || null,
+                department: form.department || null,
                 isRegistered: true,
             });
+
+            await upsertEmployeeProfile({
+                walletAddress,
+                empId: empData?.empId || null,
+                name: form.name.trim(),
+                position: form.position.trim() || null,
+                department: form.department || null,
+                email: form.email,
+            }).catch(console.error);
 
             onSuccess?.();
         } catch (error) {
@@ -89,10 +109,23 @@ const RegistrationCard = ({ onSuccess }) => {
                 try {
                     const existingData = await getEmployeeWithWA(walletAddress);
                     if (existingData) {
+                        let profile = null;
+                        try {
+                            const profileResp = await getEmployeeProfile(walletAddress);
+                            if (profileResp?.success) {
+                                profile = profileResp.data;
+                            }
+                        } catch (profileErr) {
+                            console.warn("Profile hydration failed for existing user:", profileErr);
+                        }
+
                         setEmpData({
                             empId: existingData?.empId || null,
                             salary: existingData.rem_salary / 10000000,
-                            email: form.email,
+                            email: profile?.email || form.email || null,
+                            name: profile?.name || null,
+                            position: profile?.position || null,
+                            department: profile?.department || null,
                             isRegistered: true,
                         });
                         if (onSuccess) onSuccess();
@@ -137,6 +170,16 @@ const RegistrationCard = ({ onSuccess }) => {
                             </div>
                         )}
                         <InputField
+                            label="Full Name"
+                            type="text"
+                            placeholder="e.g. Jane Doe"
+                            value={form.name}
+                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            error={error.name}
+                            icon="👤"
+                        />
+
+                        <InputField
                             label="Email Address"
                             type="email"
                             placeholder="you@example.com"
@@ -145,6 +188,28 @@ const RegistrationCard = ({ onSuccess }) => {
                             error={error.email}
                             icon="✉"
                         />
+
+                        <InputField
+                            label="Position / Title"
+                            type="text"
+                            placeholder="e.g. Software Engineer"
+                            value={form.position}
+                            onChange={(e) => setForm({ ...form, position: e.target.value })}
+                            icon="💼"
+                        />
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-gray-500 text-sm font-medium uppercase tracking-wider">Department</label>
+                            <select
+                                value={form.department}
+                                onChange={(e) => setForm({ ...form, department: e.target.value })}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-pink-500/50 transition-all appearance-none">
+                                <option value="" className="bg-[#111]">Select department...</option>
+                                {["Engineering", "Finance", "HR", "Marketing", "Operations", "Sales", "Design", "Legal", "Product"].map(d => (
+                                    <option key={d} value={d} className="bg-[#111]">{d}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         <InputField
                             label="Monthly Salary (XLM)"
@@ -167,7 +232,7 @@ const RegistrationCard = ({ onSuccess }) => {
                             <Button
                                 onClick={handleSubmit}
                                 isLoading={isLoading}
-                                disabled={!form.email || !form.salary}
+                                disabled={!form.name || !form.email || !form.salary}
                             >
                                 Register ✦
                             </Button>

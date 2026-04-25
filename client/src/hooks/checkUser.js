@@ -1,6 +1,7 @@
 import { registerEmployee, getEmployeeWithWA } from "../services/sorobanService.js";
 import { useCallback } from "react";
 import { useEmployeeStore } from "../store/empStore.js";
+import { getEmployeeProfile } from "../libs/supabase.js";
 
 //creating a custom hook to check if a user
 //is registered or not in a system
@@ -25,12 +26,28 @@ export function useCheckUser() {
                 return { isRegistered: false };
             }
 
+            let profile = null;
+            try {
+                const profileResp = await getEmployeeProfile(address);
+                if (profileResp?.success) {
+                    profile = profileResp.data;
+                }
+            } catch (profileError) {
+                // Profile table can fail independently; do not block registration state.
+                console.warn("Profile fetch failed in checkUser:", profileError);
+            }
+
+            const currentEmployee = useEmployeeStore.getState();
+
             setEmpData({
                 empId: empData.empId,
                 salary: empData.rem_salary / 10000000,
-                email: empData.email,
+                email: profile?.email ?? empData.email ?? currentEmployee.email ?? null,
+                name: profile?.name ?? currentEmployee.name ?? null,
+                position: profile?.position ?? currentEmployee.position ?? null,
+                department: profile?.department ?? currentEmployee.department ?? null,
             })
-            return { isRegistered: true, empData };
+            return { isRegistered: true, empData, profile };
 
         } catch (error) {
             console.error("checkUser error details:", error);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useWalletContext } from "../context/WalletContext";
+import EmployeeManagement from "./EmployeeManagement";
 import {
   depositToVault,
   getVaultBalance,
@@ -12,6 +13,7 @@ import {
   exportVaultSummary,
   exportPayrollReport,
 } from "../utils/csvExport";
+import { getEmployeeProfile, upsertEmployeeProfile } from "../libs/supabase";
 
 const EMPLOYEE_IDS = [1, 2, 3, 4];
 
@@ -27,6 +29,9 @@ const EmployerDashboard = () => {
   const [notification, setNotification] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", position: "", department: "" });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     if (walletAddress) fetchDashboardData();
@@ -42,14 +47,22 @@ const EmployerDashboard = () => {
         EMPLOYEE_IDS.map((id) => getEmployeeDetails(walletAddress, id))
       );
 
-      const fetched = results
-        .map((r, idx) => {
+      const fetched = await Promise.all(
+        results.map(async (r, idx) => {
           if (r.status === "fulfilled" && r.value) {
             const raw = r.value;
+            const empWallet = raw?.wallet?.toString() || "";
+            let profile = null;
+            if (empWallet) {
+              try { const { data } = await getEmployeeProfile(empWallet); profile = data; } catch {}
+            }
             return {
               id: EMPLOYEE_IDS[idx],
-              name: `Employee #${EMPLOYEE_IDS[idx]}`,
-              walletAddress: raw?.wallet?.toString() || "Unknown",
+              name: profile?.name || `Employee #${EMPLOYEE_IDS[idx]}`,
+              position: profile?.position || null,
+              department: profile?.department || null,
+              email: profile?.email || null,
+              walletAddress: empWallet || "Unknown",
               salary: Number(raw?.rem_salary || 0) / 10000000,
               withdrawn: 0,
               status: raw?.emp_id ? "active" : "inactive",
@@ -57,9 +70,9 @@ const EmployerDashboard = () => {
           }
           return null;
         })
-        .filter(Boolean);
+      );
 
-      setEmployees(fetched);
+      setEmployees(fetched.filter(Boolean));
     } catch (err) {
       console.error("Dashboard fetch error:", err);
       showNotification("Failed to load dashboard data.", "error");
@@ -147,6 +160,35 @@ const EmployerDashboard = () => {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (!editingEmployee) return;
+    setIsSavingProfile(true);
+    try {
+      const result = await upsertEmployeeProfile({
+        walletAddress: editingEmployee.walletAddress,
+        empId: editingEmployee.id,
+        name: editForm.name,
+        position: editForm.position,
+        department: editForm.department,
+        email: editingEmployee.email || null,
+      });
+      if (!result.success) throw new Error(result.error);
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e.id === editingEmployee.id
+            ? { ...e, name: editForm.name || e.name, position: editForm.position || null, department: editForm.department || null }
+            : e
+        )
+      );
+      setEditingEmployee(null);
+      showNotification("Employee profile updated successfully");
+    } catch (err) {
+      showNotification(err.message || "Failed to save profile", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   const totalSalaries = employees.reduce((sum, e) => sum + e.salary, 0);
   const totalWithdrawn = employees.reduce((sum, e) => sum + e.withdrawn, 0);
   const activeEmployees = employees.filter((e) => e.status === "active").length;
@@ -229,7 +271,7 @@ const EmployerDashboard = () => {
             </div>
 
             <div className="flex gap-1 mb-8 p-1 bg-white/5 rounded-xl w-fit border border-white/[0.08]">
-              {["overview", "employees", "deposit"].map((tab) => (
+              {["overview", "employees", "management", "deposit"].map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
                   className={`px-5 py-2 rounded-lg text-sm font-medium capitalize transition-all ${activeTab === tab ? "bg-gradient-to-r from-pink-400 to-purple-400 text-black" : "text-gray-400 hover:text-white"}`}>
                   {tab}
@@ -300,6 +342,14 @@ const EmployerDashboard = () => {
               </div>
             )}
 
+            {activeTab === "management" && (
+              <EmployeeManagement
+                employees={employees}
+                onEmployeesUpdate={setEmployees}
+                showNotification={showNotification}
+              />
+            )}
+
             {activeTab === "deposit" && (
               <div className="max-w-lg">
                 <div className="rounded-2xl bg-[#111] border border-white/[0.08] p-8">
@@ -348,6 +398,8 @@ const EmployerDashboard = () => {
             </div>
             <div className="space-y-4 mb-6">
               {[
+                ...(selectedEmployee.position ? [{ label: "Position", value: selectedEmployee.position, cls: "text-purple-400" }] : []),
+                ...(selectedEmployee.department ? [{ label: "Department", value: selectedEmployee.department, cls: "text-purple-400" }] : []),
                 { label: "Monthly Salary", value: `${selectedEmployee.salary.toLocaleString()} XLM`, cls: "text-white" },
                 { label: "Withdrawn", value: `${selectedEmployee.withdrawn.toLocaleString()} XLM`, cls: "text-white" },
                 { label: "Remaining", value: `${(selectedEmployee.salary - selectedEmployee.withdrawn).toLocaleString()} XLM`, cls: "text-emerald-400" },
@@ -359,11 +411,64 @@ const EmployerDashboard = () => {
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => { handleReleaseSalary(selectedEmployee); setSelectedEmployee(null); }}
-              disabled={selectedEmployee.withdrawn >= selectedEmployee.salary || releasingId === selectedEmployee.id}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
-              Release Full Salary
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setEditingEmployee(selectedEmployee);
+                  setEditForm({ name: selectedEmployee.name, position: selectedEmployee.position || "", department: selectedEmployee.department || "" });
+                  setSelectedEmployee(null);
+                }}
+                className="flex-1 py-3 rounded-xl border border-white/10 text-gray-300 font-medium hover:bg-white/5 transition-all text-sm">
+                Edit Profile
+              </button>
+              <button
+                onClick={() => { handleReleaseSalary(selectedEmployee); setSelectedEmployee(null); }}
+                disabled={selectedEmployee.withdrawn >= selectedEmployee.salary || releasingId === selectedEmployee.id}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-sm">
+                Release Salary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-4 rounded-2xl bg-[#111] border border-white/10 p-8">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white">Edit Profile</h3>
+                <p className="text-gray-500 text-sm mt-1">{editingEmployee.walletAddress.slice(0, 10)}...{editingEmployee.walletAddress.slice(-8)}</p>
+              </div>
+              <button onClick={() => setEditingEmployee(null)} className="p-2 rounded-lg hover:bg-white/5 text-gray-500">✕</button>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div className="flex flex-col gap-2">
+                <label className="text-gray-500 text-xs uppercase tracking-wider">Full Name</label>
+                <input type="text" value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Jane Doe"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-pink-500/50 transition-all" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-gray-500 text-xs uppercase tracking-wider">Position / Title</label>
+                <input type="text" value={editForm.position} onChange={(e) => setEditForm((p) => ({ ...p, position: e.target.value }))} placeholder="e.g. Software Engineer"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-pink-500/50 transition-all" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-gray-500 text-xs uppercase tracking-wider">Department</label>
+                <select value={editForm.department} onChange={(e) => setEditForm((p) => ({ ...p, department: e.target.value }))}
+                  className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-pink-500/50 transition-all appearance-none">
+                  <option value="">Select department...</option>
+                  {["Engineering", "Finance", "HR", "Marketing", "Operations", "Sales", "Design", "Legal", "Product"].map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button onClick={handleSaveProfile} disabled={isSavingProfile}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {isSavingProfile ? (
+                <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Saving...</>
+              ) : "Save Profile ✦"}
             </button>
           </div>
         </div>
@@ -398,10 +503,12 @@ const EmployeeRow = ({ employee, onRelease, isReleasing, compact, onSelect }) =>
         {employee.name.charAt(0)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="text-white text-sm font-medium truncate">{employee.name}</p>
           <span className={`px-1.5 py-0.5 rounded text-xs ${employee.status === "active" ? "bg-emerald-400/10 text-emerald-400" : "bg-gray-500/10 text-gray-500"}`}>{employee.status}</span>
+          {employee.department && <span className="px-1.5 py-0.5 rounded text-xs bg-purple-400/10 text-purple-400">{employee.department}</span>}
         </div>
+        {employee.position && <p className="text-purple-400/70 text-xs">{employee.position}</p>}
         {!compact && <p className="text-gray-600 text-xs font-mono truncate mt-0.5">{employee.walletAddress.slice(0, 12)}...</p>}
         <div className="flex items-center gap-2 mt-1.5">
           <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden max-w-24">
