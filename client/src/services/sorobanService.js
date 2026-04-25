@@ -10,7 +10,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 
-import { signTransaction } from "@stellar/freighter-api";
+import { signTransaction, isConnected as freighterIsConnected } from "@stellar/freighter-api";
 
 // Contract addresses (set these via VITE_* env vars)
 const CONTRACT_ADDRESS_TOKEN = import.meta.env.VITE_CONTRACT_TOKEN;
@@ -78,6 +78,92 @@ function getWageContract() {
     throw new Error(`Invalid contract ID for CONTRACT_ADDRESS_WAGE: ${CONTRACT_ADDRESS_WAGE}`);
   }
 }
+
+function i128PartsToBigInt(parts) {
+  const hi = BigInt(parts.hi().toString());
+  const lo = BigInt(parts.lo().toString());
+  const unsigned = (hi << 64n) | lo;
+  return BigInt.asIntN(128, unsigned);
+}
+
+function u128PartsToBigInt(parts) {
+  const hi = BigInt(parts.hi().toString());
+  const lo = BigInt(parts.lo().toString());
+  return (hi << 64n) | lo;
+}
+
+function decodeScVal(scVal) {
+  if (!scVal || typeof scVal.switch !== "function") return null;
+
+  const t = scVal.switch().name;
+
+  switch (t) {
+    case "scvVoid":
+      return null;
+    case "scvBool":
+      return scVal.b();
+    case "scvU32":
+      return Number(scVal.u32());
+    case "scvI32":
+      return Number(scVal.i32());
+    case "scvU64":
+      return Number(BigInt(scVal.u64().toString()));
+    case "scvI64":
+      return Number(BigInt(scVal.i64().toString()));
+    case "scvU128":
+      return Number(u128PartsToBigInt(scVal.u128()));
+    case "scvI128":
+      return Number(i128PartsToBigInt(scVal.i128()));
+    case "scvString":
+      return scVal.str().toString();
+    case "scvSymbol":
+      return scVal.sym().toString();
+    case "scvAddress":
+      return Address.fromScAddress(scVal.address()).toString();
+    case "scvVec": {
+      const vec = scVal.vec() || [];
+      return vec.map((item) => decodeScVal(item));
+    }
+    case "scvMap": {
+      const entries = scVal.map() || [];
+      const out = {};
+      for (const entry of entries) {
+        const key = decodeScVal(entry.key());
+        const value = decodeScVal(entry.val());
+        out[String(key)] = value;
+      }
+      return out;
+    }
+    default:
+      // Fallback for less common ScVal arms.
+      try {
+        return scValToNative(scVal);
+      } catch {
+        return null;
+      }
+  }
+}
+
+function getNativeRetval(simResult) {
+  try {
+    const rawResultXdr = simResult?.results?.[0]?.xdr;
+    const parsedRetval = simResult?.result?.retval;
+    if (!rawResultXdr && !parsedRetval) return null;
+
+    const scVal = rawResultXdr
+      ? xdr.ScVal.fromXDR(rawResultXdr, "base64")
+      : (typeof parsedRetval.toXDR === "function"
+        ? xdr.ScVal.fromXDR(parsedRetval.toXDR())
+        : xdr.ScVal.fromXDR(parsedRetval, "base64"));
+
+    return decodeScVal(scVal);
+  } catch (err) {
+    console.error("Failed to decode Soroban retval:", err, simResult);
+    return null;
+  }
+}
+
+
 // ============================================
 // ScVal HELPERS
 // ============================================
@@ -105,7 +191,8 @@ async function buildContractCall(publicKey, contractId, functionName, args = [])
 }
 
 async function signWithFreighter(preparedTx) {
-  if (!window.freighterApi) throw new Error("Freighter wallet not found");
+  const { isConnected } = await freighterIsConnected();
+  if (!isConnected) throw new Error("Freighter wallet not connected. Please open the Freighter extension and connect.");
 
   const txXdr = preparedTx.toXDR();
   const signedResponse = await signTransaction(txXdr, {
@@ -283,7 +370,7 @@ export async function requestAdvance(publicKey, empId, amount, tokenAddress = CO
 export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
   try {
     const account = await server.getAccount(publicKey);
-  const contract = getWageContract();
+    const contract = getWageContract();
     const operation = contract.call("vault_balance", addressToScVal(tokenAddress));
 
     const transaction = new TransactionBuilder(account, {
@@ -295,10 +382,8 @@ export async function getVaultBalance(publicKey, tokenAddress = CONTRACT_ADDRESS
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-    if (simResult.result) {
-      const resultValue = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
-      return Number(resultValue.i128().lo().toString());
-    }
+    const val = getNativeRetval(simResult);
+    if (val !== null && val !== undefined) return Number(val) || 0;
     return 0;
   } catch (error) {
     console.error("Error getting vault balance:", error);
@@ -321,10 +406,8 @@ export async function getEmployeeDetails(publicKey, empId) {
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-    if (simResult.result) {
-      const raw = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
-      return scValToNative(raw);
-    }
+    const decoded = getNativeRetval(simResult);
+    if (decoded) return decoded;
     return null;
   } catch (error) {
     console.error("Error getting employee details:", error);
@@ -347,12 +430,8 @@ export async function getEmployeeIdByWallet(walletAddress) {
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-    if (simResult.result) {
-      const sc = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
-      const id = Number(sc.u128().lo().toString());
-      return id;
-    }
-
+    const val = getNativeRetval(simResult);
+    if (val !== null && val !== undefined) return Number(val) || 0;
     return 0;
   } catch (error) {
     console.error("Error getting employee ID by wallet:", error);
@@ -400,10 +479,8 @@ export async function getRemainingSalary(publicKey, empId) {
       .build();
 
     const simResult = await server.simulateTransaction(transaction);
-    if (simResult.result) {
-      const resultValue = xdr.ScVal.fromXDR(simResult.result.retval.toXDR());
-      return Number(resultValue.u128().lo().toString());
-    }
+    const val = getNativeRetval(simResult);
+    if (val !== null && val !== undefined) return Number(val) || 0;
     return 0;
   } catch (error) {
     console.error("Error getting remaining salary:", error);

@@ -50,9 +50,9 @@ const EmployerDashboard = () => {
               id: EMPLOYEE_IDS[idx],
               name: `Employee #${EMPLOYEE_IDS[idx]}`,
               walletAddress: raw?.wallet?.toString() || "Unknown",
-              salary: Number(raw?.salary || 0) / 10000000,
-              withdrawn: Number(raw?.withdrawn || 0) / 10000000,
-              status: raw?.active ? "active" : "inactive",
+              salary: Number(raw?.rem_salary || 0) / 10000000,
+              withdrawn: 0,
+              status: raw?.emp_id ? "active" : "inactive",
             };
           }
           return null;
