@@ -298,7 +298,13 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/send", apiKeyAuth(sendAsset))
-	mux.HandleFunc("/api/balances", getAccountBalances)
+<<<<<<< Updated upstream
+	// /api/balances exposes Stellar account data; protect it with the same
+	// API-key middleware used by /api/send so unauthenticated callers cannot
+	// enumerate arbitrary account balances.
+=======
+>>>>>>> Stashed changes
+	mux.HandleFunc("/api/balances", apiKeyAuth(getAccountBalances))
 	mux.HandleFunc("/api/health", healthCheck)
 
 	port := os.Getenv("PORT")
