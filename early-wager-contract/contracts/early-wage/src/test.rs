@@ -215,6 +215,62 @@ fn test_request_advance_exceeds_salary_fails() {
     client.request_advance(&1u128, &5000i128, &token_client.address);
 }
 
+/// Requesting exactly rem_salary must be rejected (>= guard).
+/// Previously the contract used `>=` which was correct, but this test
+/// explicitly documents the boundary: amount == rem_salary is forbidden.
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_request_advance_equal_to_salary_fails() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    let salary: u128 = 10_000;
+    client.register_employee(&emp_wallet, &salary);
+
+    token_client.mint(&admin, &100_000);
+    client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
+
+    // amount == rem_salary must be rejected — employee would receive less than
+    // their full salary due to the 1.25% fee, and rem_salary would hit 0.
+    client.request_advance(&1u128, &(salary as i128), &token_client.address);
+}
+
+/// Requesting one stroop less than rem_salary must succeed.
+#[test]
+fn test_request_advance_one_below_salary_succeeds() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    let salary: u128 = 10_000;
+    client.register_employee(&emp_wallet, &salary);
+
+    token_client.mint(&admin, &100_000);
+    client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
+
+    // amount = rem_salary - 1 must succeed
+    let advance = (salary - 1) as i128;
+    let net = client.request_advance(&1u128, &advance, &token_client.address);
+    let expected_fee = advance * 125 / 10000;
+    assert_eq!(net, advance - expected_fee);
+}
+
+/// Vault with insufficient funds must return InsufficientVaultBalance (#9).
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")]
+fn test_request_advance_insufficient_vault_fails() {
+    let (env, contract_id, _admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    // Register with a large salary but deposit nothing into the vault.
+    client.register_employee(&emp_wallet, &1_000_000u128);
+
+    // Vault is empty — advance must fail with InsufficientVaultBalance.
+    client.request_advance(&1u128, &500i128, &token_client.address);
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_request_advance_zero_amount_fails() {
