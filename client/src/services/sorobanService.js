@@ -10,7 +10,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 
-import { signTransaction } from "@stellar/freighter-api";
+import freighter from "@stellar/freighter-api";
 
 // Contract addresses (set these via VITE_* env vars)
 const CONTRACT_ADDRESS_TOKEN = import.meta.env.VITE_CONTRACT_TOKEN;
@@ -108,7 +108,7 @@ async function signWithFreighter(preparedTx) {
   if (!window.freighterApi) throw new Error("Freighter wallet not found");
 
   const txXdr = preparedTx.toXDR();
-  const signedResponse = await signTransaction(txXdr, {
+  const signedResponse = await freighter.signTransaction(txXdr, {
     network: "TESTNET",
     networkPassphrase: Networks.TESTNET,
   });
