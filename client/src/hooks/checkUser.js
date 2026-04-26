@@ -1,4 +1,4 @@
-import { registerEmployee, getEmployeeWithWA } from "../services/sorobanService.js";
+import { getEmployeeWithWA } from "../services/sorobanService.js";
 import { useCallback } from "react";
 import { useEmployeeStore } from "../store/empStore.js";
 
@@ -9,7 +9,6 @@ export function useCheckUser() {
     //using zustand here 
     //to manage state
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
-    const setError = useEmployeeStore((state) => state.setError);
     const setLoading = useEmployeeStore((state) => state.setLoading);
 
     const checkUser = useCallback(async (address) => {

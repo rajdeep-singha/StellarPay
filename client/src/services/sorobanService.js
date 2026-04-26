@@ -54,16 +54,12 @@ export const SUPPORTED_TOKENS = [
 
 // Fetch live exchange rates relative to USD
 export async function fetchExchangeRates() {
-  try {
-    // Fallback mock rates — replace with real price feed in production
-    return {
-      XLM: 0.11,
-      USDC: 1.0,
-      EURC: 1.08,
-    };
-  } catch {
-    return { XLM: 0.11, USDC: 1.0, EURC: 1.08 };
-  }
+  // Fallback mock rates — replace with real price feed in production
+  return {
+    XLM: 0.11,
+    USDC: 1.0,
+    EURC: 1.08,
+  };
 }
 
 // Initialize Soroban RPC client
@@ -74,7 +70,7 @@ function getWageContract() {
   }
   try {
     return new Contract(CONTRACT_ADDRESS_WAGE);
-  } catch (err) {
+  } catch {
     throw new Error(`Invalid contract ID for CONTRACT_ADDRESS_WAGE: ${CONTRACT_ADDRESS_WAGE}`);
   }
 }
@@ -241,6 +237,22 @@ export async function getAdmin() {
   const preparedTx = await buildContractCall("GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", CONTRACT_ADDRESS_WAGE, "get_admin", []);
   const signedTx = await signWithFreighter(preparedTx);
   return submitTransaction(signedTx);
+}
+
+export async function getTokenBalance(publicKey, tokenAddress) {
+  try {
+    const horizonUrl = `https://horizon-testnet.stellar.org/accounts/${publicKey}`;
+    const response = await fetch(horizonUrl);
+    if (!response.ok) return 0;
+    const data = await response.json();
+    for (const b of data.balances) {
+      if (b.asset_type === "native" && tokenAddress === "native") return parseFloat(b.balance);
+      if (b.asset_issuer === tokenAddress) return parseFloat(b.balance);
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
 }
 
 export async function depositToVault(publicKey, amount, tokenAddress = CONTRACT_ADDRESS_TOKEN) {
