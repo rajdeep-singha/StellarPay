@@ -12,9 +12,21 @@ jobs:
   check-ci:
     name: Wait for CI workflows
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: All CI checks passed — proceeding to deploy
-        run: echo "CI passed. Starting deployment..."
+      - name: Check all CI workflows passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=${{ github.event.workflow_run.head_sha }}
+          for workflow in "Go Backend CI" "React Frontend CI" "Smart Contract CI (Rust/Soroban)"; do
+            status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows" \
+              --jq ".workflows[] | select(.name==\"$workflow\") | .id" | \
+              xargs -I{} gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/{}/runs?head_sha=$SHA&per_page=1" \
+              --jq '.workflow_runs[0].conclusion')
+            [ "$status" = "success" ] || (echo "$workflow: $status - aborting" && exit 1)
+          done
+          echo "All CI workflows passed!"
 
   # ── Deploy Frontend ──────────────────────────────────────────────────────────
   deploy-frontend:
