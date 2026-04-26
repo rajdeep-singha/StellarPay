@@ -7,7 +7,10 @@ use soroban_sdk::{testutils::Address as _, token, Address, Env};
 // Helper: deploy a Stellar Asset Contract and return both clients.
 // - `TokenClient` is the SEP-41 interface (balance, transfer, …)
 // - `StellarAssetClient` is the admin interface (mint, clawback, …)
-fn create_token(e: &Env, admin: &Address) -> (token::Client<'static>, token::StellarAssetClient<'static>) {
+fn create_token(
+    e: &Env,
+    admin: &Address,
+) -> (token::Client<'static>, token::StellarAssetClient<'static>) {
     let sac = e.register_stellar_asset_contract_v2(admin.clone());
     let addr = sac.address().clone();
     (
