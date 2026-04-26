@@ -1,9 +1,10 @@
 name: Deploy (CD)
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Go Backend CI", "React Frontend CI", "Smart Contract CI (Rust/Soroban)"]
+    types: [completed]
+    branches: [main]
 
 # Require all three CI jobs to pass before deploying
 jobs:
