@@ -355,3 +355,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 [Report Bug](https://github.com/your-username/Stellar-Pay/issues) · [Request Feature](https://github.com/your-username/Stellar-Pay/issues)
 
 </div>
+## Improvements
+
+- Improved documentation clarity
+- Added better explanation for payroll and remittance features
