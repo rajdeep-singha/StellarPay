@@ -298,7 +298,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/send", apiKeyAuth(sendAsset))
-	mux.HandleFunc("/api/balances", getAccountBalances)
+	mux.HandleFunc("/api/balances", apiKeyAuth(getAccountBalances))
 	mux.HandleFunc("/api/health", healthCheck)
 
 	port := os.Getenv("PORT")

@@ -159,7 +159,7 @@ func TestHealthCheck(t *testing.T) {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
 
-	var body map[string]string
+	var body map[string]interface{}
 	json.NewDecoder(rr.Body).Decode(&body)
 
 	if body["status"] != "ok" {
@@ -174,7 +174,7 @@ func TestSendLumens_InvalidMethod(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/send", nil)
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rr.Code)
@@ -185,7 +185,7 @@ func TestSendLumens_InvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBufferString("not json"))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -198,16 +198,13 @@ func TestSendLumens_InvalidJSON(t *testing.T) {
 	}
 }
 
-func sendLumens(rr *httptest.ResponseRecorder, req *http.Request) {
-	panic("unimplemented")
-}
 
 func TestSendLumens_MissingRecipient(t *testing.T) {
 	body, _ := json.Marshal(TransferRequest{Recipient: "", Amount: "100"})
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -225,7 +222,7 @@ func TestSendLumens_InvalidRecipient(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -252,7 +249,7 @@ func TestSendLumens_InvalidAmount(t *testing.T) {
 			req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 			rr := httptest.NewRecorder()
 
-			sendLumens(rr, req)
+			sendAsset(rr, req)
 
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", rr.Code)
