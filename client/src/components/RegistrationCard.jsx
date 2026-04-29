@@ -88,14 +88,16 @@ const RegistrationCard = ({ onSuccess }) => {
             if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
                 try {
                     const existingData = await getEmployeeWithWA(walletAddress);
-                    setEmpData({
-                        empId: existingData?.empId || null,
-                        salary: existingData.rem_salary / 10000000,
-                        email: existingData.email,
-                        isRegistered: true, // Force Zustand to see us!
-                    });
-                    if (onSuccess) onSuccess(); // Notify HomePage
-                    return; // Crucial early exit
+                    if (existingData) {
+                        setEmpData({
+                            empId: existingData?.empId || null,
+                            salary: existingData.rem_salary / 10000000,
+                            email: existingData.email,
+                            isRegistered: true, // Force Zustand to see us!
+                        });
+                        if (onSuccess) onSuccess(); // Notify HomePage
+                        return; // Crucial early exit
+                    }
                 } catch (readErr) {
                     console.error("Failed to fetch existing profile:", readErr);
                 }

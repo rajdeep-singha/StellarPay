@@ -380,8 +380,9 @@ export async function getEmployeeWithWA(walletAddress) {
       ...details,
     };
   } catch (error) {
-    console.error("Error getting employee with wallet address:", error);
-    throw error;
+    // Handle errors gracefully for unregistered wallets
+    console.log("Wallet not registered or error fetching employee data:", error.message);
+    return null;
   }
 }
 
