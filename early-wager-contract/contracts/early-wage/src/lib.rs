@@ -31,6 +31,8 @@ pub enum ContractError {
     InvalidAmount = 7,
     /// No remaining salary to release.
     NoRemainingSalary = 8,
+    /// Insufficient vault balance for transfer.
+    InsufficientVaultBalance = 9,
 }
 
 // ============================================================
@@ -229,7 +231,7 @@ impl EarlyWageContract {
         let client = token::Client::new(&e, &token);
         // Check user balance before cross-contract deposit
         if client.balance(&from) < amount {
-            return Err(ContractError::InvalidAmount);
+            return Err(ContractError::InsufficientVaultBalance);
         }
         client.transfer(&from, &e.current_contract_address(), &amount);
 
@@ -283,7 +285,7 @@ impl EarlyWageContract {
         // Authorization: only the employee can request their own advance
         emp.wallet.require_auth();
 
-        if amount as u128 >= emp.rem_salary {
+        if amount as u128 > emp.rem_salary {
             return Err(ContractError::ExceedsRemainingSalary);
         }
 
@@ -291,6 +293,10 @@ impl EarlyWageContract {
         let final_amount = amount - fee;
 
         let client = token::Client::new(&e, &token);
+        // Check vault balance before cross-contract transfer
+        if client.balance(&e.current_contract_address()) < final_amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
         client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
 
         emp.rem_salary -= amount as u128;
