@@ -284,6 +284,32 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func getTransactionHistory(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "account_id query param required")
+		return
+	}
+
+	client := horizonclient.DefaultTestNetClient
+	tr := horizonclient.TransactionRequest{
+		ForAccount: accountID,
+		Limit:      10,
+		Order:      horizonclient.OrderDesc,
+	}
+
+	txs, err := client.Transactions(tr)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "NETWORK_ERROR", fmt.Sprintf("cannot load transactions: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"account_id":   accountID,
+		"transactions": txs.Embedded.Records,
+	})
+}
+
 // ---------- Main ----------
 
 func main() {
@@ -300,6 +326,7 @@ func main() {
 	mux.HandleFunc("/api/send", apiKeyAuth(sendAsset))
 	mux.HandleFunc("/api/balances", getAccountBalances)
 	mux.HandleFunc("/api/health", healthCheck)
+	mux.HandleFunc("/api/tx-history", getTransactionHistory)
 
 	port := os.Getenv("PORT")
 	if port == "" {
