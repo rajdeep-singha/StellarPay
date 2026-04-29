@@ -8,6 +8,7 @@ import TransactionHistory from "./TransactionHistory";
 import SendMoneyModal from "./SendMoneyModal";
 import WaitlistModal from "./WaitlistModal";
 import RegistrationCard from "./RegistrationCard";
+import Logo from "./Logo";
 import { useEmployeeStore } from "../store/empStore";
 import { useCheckUser } from "../hooks/checkUser";
 
@@ -44,6 +45,7 @@ const HomePage = () => {
   const [showSendModal, setShowSendModal] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false); //to check if a user is registered or not 
+  const [showMobileMenu, setShowMobileMenu] = useState(false); 
 
 
   const fetchEmployeeData = useCallback(async () => {
@@ -188,122 +190,300 @@ const HomePage = () => {
       )}
 
       {/* Header */}
-      <header className="w-full border-b border-white/[0.08]">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#0a0a0a]" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" />
-              </svg>
-            </div>
-            <span className="text-xl font-semibold text-white">StellarPay</span>
-          </div>
+      <header className="w-full border-b border-white/[0.08] sticky top-0 z-40 backdrop-blur-sm bg-[#0a0a0a]/90">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex justify-between items-center">
+            <Logo size="medium" />
 
-          <nav className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
-            <a href="#stats" className="text-gray-400 hover:text-white transition-colors">Stats</a>
-            <a href="#about" className="text-gray-400 hover:text-white transition-colors">About</a>
-          </nav>
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-8">
+              <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
+              <a href="#stats" className="text-gray-400 hover:text-white transition-colors">Stats</a>
+              <a href="#about" className="text-gray-400 hover:text-white transition-colors">About</a>
+            </nav>
 
-          <div className="flex items-center gap-3">
-            {isConnected && (
-              <button
-                onClick={() => setShowSendModal(true)}
-                className="px-4 py-2 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-all flex items-center gap-2"
-              >
-                <span>💸</span>
-                <span className="hidden sm:inline">Send XLM</span>
-              </button>
-            )}
-
-            {isConnected ? (
-              <div className="flex items-center gap-2">
-                <div className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-emerald-400 font-mono text-sm">
-                    {formatAddress(walletAddress)}
-                  </span>
-                </div>
+            {/* Desktop Actions */}
+            <div className="hidden sm:flex items-center gap-3">
+              {isConnected && (
                 <button
-                  onClick={disconnectWallet}
-                  className="p-2 rounded-lg border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
-                  title="Disconnect"
+                  onClick={() => setShowSendModal(true)}
+                  className="px-4 py-2 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-all flex items-center gap-2"
                 >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
+                  <span>?</span>
+                  <span>Send XLM</span>
                 </button>
-              </div>
-            ) : (
-              <button
-                onClick={connectWallet}
-                disabled={isConnecting}
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isConnecting ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              )}
+
+              {isConnected ? (
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-emerald-400 font-mono text-sm hidden lg:block">
+                      {formatAddress(walletAddress)}
+                    </span>
+                    <span className="text-emerald-400 font-mono text-sm lg:hidden">
+                      {formatAddress(walletAddress).slice(0, 6)}...
+                    </span>
+                  </div>
+                  <button
+                    onClick={disconnectWallet}
+                    className="p-2 rounded-lg border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
+                    title="Disconnect"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    Connecting...
-                  </span>
-                ) : (
-                  "Connect Wallet ✦"
-                )}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={connectWallet}
+                  disabled={isConnecting}
+                  className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnecting ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Connecting...
+                    </span>
+                  ) : (
+                    "Connect ?"
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <div className="sm:hidden">
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
               </button>
-            )}
+            </div>
           </div>
+
+          {/* Mobile Menu */}
+          {showMobileMenu && (
+            <div className="sm:hidden mt-4 pt-4 border-t border-white/10">
+              <nav className="flex flex-col gap-4 mb-4">
+                <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
+                <a href="#stats" className="text-gray-400 hover:text-white transition-colors">Stats</a>
+                <a href="#about" className="text-gray-400 hover:text-white transition-colors">About</a>
+              </nav>
+              <div className="flex flex-col gap-3">
+                {isConnected && (
+                  <button
+                    onClick={() => setShowSendModal(true)}
+                    className="px-4 py-2 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>?</span>
+                    <span>Send XLM</span>
+                  </button>
+                )}
+                {isConnected ? (
+                  <div className="flex items-center gap-2">
+                    <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 flex-1">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-emerald-400 font-mono text-sm">
+                        {formatAddress(walletAddress)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={disconnectWallet}
+                      className="p-2 rounded-lg border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
+                      title="Disconnect"
+                    >
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={connectWallet}
+                    disabled={isConnecting}
+                    className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isConnecting ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Connecting...
+                      </span>
+                    ) : (
+                      "Connect Wallet ?"
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 py-16 md:py-24">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-              <span className="underline decoration-2 underline-offset-8">Think</span>{" "}
-              <span className="bg-gradient-to-r from-pink-300 to-purple-300 px-3 py-1">Secure</span>
-              <br />
-              <span className="text-white">Pay Effortlessly</span>
-            </h1>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-24">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div className="space-y-6 lg:space-y-8">
+            <div className="space-y-4">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
+                <span className="block text-white">Think</span>
+                <span className="block bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Secure</span>
+                <span className="block text-white">Pay Effortlessly</span>
+              </h1>
+            </div>
 
-            <div className="w-full h-px bg-white/10 my-8" />
+            <div className="w-16 sm:w-20 lg:w-24 h-1 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full"></div>
 
-            <p className="text-xl text-gray-400 leading-relaxed">
+            <p className="text-lg sm:text-xl md:text-2xl text-gray-300 leading-relaxed max-w-lg">
               Your Gateway to Instant Remittances, Early Wage Access and Seamless Payroll.
             </p>
 
-            <div className="w-full h-px bg-white/10 my-8" />
-
-            <div className="flex flex-wrap gap-4">
-              <button className="px-6 py-3 rounded-lg border border-white/20 text-white hover:bg-white/5 transition-all flex items-center gap-2">
-                Know More
-                <span className="text-gray-500">ⓘ</span>
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <button className="group px-6 py-3 sm:px-8 sm:py-4 rounded-xl border border-white/20 text-white hover:bg-white/10 hover:border-white/30 transition-all duration-300 flex items-center justify-center gap-3 font-medium">
+                <span>Know More</span>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </button>
               <button
                 onClick={() => setShowWaitlistModal(true)}
-                className="px-6 py-3 rounded-lg bg-gradient-to-r from-pink-300/90 to-purple-300/90 text-black font-semibold hover:opacity-90 transition-all flex items-center gap-2"
+                className="group px-6 py-3 sm:px-8 sm:py-4 rounded-xl bg-gradient-to-r from-pink-400 to-purple-400 text-black font-semibold hover:shadow-lg hover:shadow-pink-500/25 transition-all duration-300 flex items-center justify-center gap-3"
               >
-                Join the Waitlist
-                <span>✦</span>
+                <span>Join the Waitlist</span>
+                <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </button>
             </div>
           </div>
 
-          {/* Abstract Graphics */}
+          {/* Payment Flow Visualization - Desktop */}
           <div className="hidden lg:flex justify-center items-center relative">
-            <div className="relative w-80 h-80">
-              <div className="absolute top-0 right-0 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-full" />
-              <div className="absolute top-12 left-0 w-8 h-8 bg-gray-500 rounded-full" />
-              <div className="absolute top-20 right-8 w-40 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full" />
-              <div className="absolute top-32 right-0 w-8 h-8 bg-gray-400 rounded-full" />
-              <div className="absolute top-40 left-8 w-40 h-8 bg-gradient-to-r from-gray-600 to-gray-500 rounded-full" />
-              <div className="absolute bottom-20 right-16 w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-full" />
-              <div className="absolute bottom-16 right-8 w-4 h-40 bg-gradient-to-b from-gray-300 to-gray-500 rounded-full" />
-              <div className="absolute bottom-24 right-0 w-4 h-28 bg-gradient-to-b from-gray-500 to-gray-700 rounded-full" />
-              <div className="absolute bottom-12 right-4 w-3 h-3 bg-white rounded-full" />
-              <div className="absolute top-28 right-20 w-3 h-3 bg-gray-400 rounded-full" />
+            <div className="relative w-80 h-80 lg:w-96 lg:h-96">
+              {/* Central Stellar Network Hub */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center animate-pulse">
+                  <svg className="w-8 h-8 lg:w-10 lg:h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Payment Nodes */}
+              <div className="absolute top-8 left-8 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '0s' }}>
+                <svg className="w-5 h-5 lg:w-6 lg:h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                </svg>
+              </div>
+
+              <div className="absolute top-8 right-8 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-gradient-to-r from-blue-400 to-indigo-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '0.5s' }}>
+                <svg className="w-5 h-5 lg:w-6 lg:h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/>
+                  <path d="M7 15h10M7 10h10"/>
+                </svg>
+              </div>
+
+              <div className="absolute bottom-8 left-8 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-gradient-to-r from-orange-400 to-red-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '1s' }}>
+                <svg className="w-5 h-5 lg:w-6 lg:h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+              </div>
+
+              <div className="absolute bottom-8 right-8 w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '1.5s' }}>
+                <svg className="w-5 h-5 lg:w-6 lg:h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3M21 12c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3M21 12c0 1 1 3 3 3s3-2 3-3-1-3-3-3-3 2-3 3"/>
+                </svg>
+              </div>
+
+              {/* Connection Lines */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <defs>
+                  <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f472b6" stopOpacity="0.6"/>
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.6"/>
+                  </linearGradient>
+                </defs>
+                <line x1="50%" y1="50%" x2="20%" y2="20%" stroke="url(#lineGradient)" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse"/>
+                <line x1="50%" y1="50%" x2="80%" y2="20%" stroke="url(#lineGradient)" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" style={{ animationDelay: '0.3s' }}/>
+                <line x1="50%" y1="50%" x2="20%" y2="80%" stroke="url(#lineGradient)" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" style={{ animationDelay: '0.6s' }}/>
+                <line x1="50%" y1="50%" x2="80%" y2="80%" stroke="url(#lineGradient)" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse" style={{ animationDelay: '0.9s' }}/>
+              </svg>
+
+              {/* Floating Particles */}
+              <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-pink-400 rounded-full animate-ping"></div>
+              <div className="absolute top-3/4 right-1/4 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
+              <div className="absolute top-1/2 right-1/3 w-2 h-2 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+            </div>
+          </div>
+
+          {/* Mobile Payment Flow Visualization */}
+          <div className="lg:hidden flex justify-center items-center relative mt-8">
+            <div className="relative w-64 h-64">
+              {/* Central Stellar Network Hub */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center animate-pulse">
+                  <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Payment Nodes - Mobile */}
+              <div className="absolute top-4 left-4 w-8 h-8 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '0s' }}>
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                </svg>
+              </div>
+
+              <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-indigo-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '0.5s' }}>
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/>
+                  <path d="M7 15h10M7 10h10"/>
+                </svg>
+              </div>
+
+              <div className="absolute bottom-4 left-4 w-8 h-8 rounded-full bg-gradient-to-r from-orange-400 to-red-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '1s' }}>
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+              </div>
+
+              <div className="absolute bottom-4 right-4 w-8 h-8 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center animate-bounce" style={{ animationDelay: '1.5s' }}>
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3M21 12c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3M21 12c0 1 1 3 3 3s3-2 3-3-1-3-3-3-3 2-3 3"/>
+                </svg>
+              </div>
+
+              {/* Connection Lines - Mobile */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <defs>
+                  <linearGradient id="lineGradientMobile" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f472b6" stopOpacity="0.6"/>
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.6"/>
+                  </linearGradient>
+                </defs>
+                <line x1="50%" y1="50%" x2="20%" y2="20%" stroke="url(#lineGradientMobile)" strokeWidth="1.5" strokeDasharray="4,4" className="animate-pulse"/>
+                <line x1="50%" y1="50%" x2="80%" y2="20%" stroke="url(#lineGradientMobile)" strokeWidth="1.5" strokeDasharray="4,4" className="animate-pulse" style={{ animationDelay: '0.3s' }}/>
+                <line x1="50%" y1="50%" x2="20%" y2="80%" stroke="url(#lineGradientMobile)" strokeWidth="1.5" strokeDasharray="4,4" className="animate-pulse" style={{ animationDelay: '0.6s' }}/>
+                <line x1="50%" y1="50%" x2="80%" y2="80%" stroke="url(#lineGradientMobile)" strokeWidth="1.5" strokeDasharray="4,4" className="animate-pulse" style={{ animationDelay: '0.9s' }}/>
+              </svg>
+
+              {/* Floating Particles - Mobile */}
+              <div className="absolute top-1/4 left-1/4 w-1.5 h-1.5 bg-pink-400 rounded-full animate-ping"></div>
+              <div className="absolute top-3/4 right-1/4 w-1.5 h-1.5 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
+              <div className="absolute top-1/2 right-1/3 w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
             </div>
           </div>
         </div>
