@@ -1,0 +1,150 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  # Quick checks for PRs
+  quick-checks:
+    name: Quick Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check for conventional commits
+      uses: conventional-commits/checker-action@v10
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Check file size
+      uses: actions-contributor/file-size-check@v2
+      with:
+        max-file-size: '5MB'
+        
+    - name: Check for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  # Code quality checks
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+        
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: '1.75'
+        components: rustfmt, clippy
+        
+    - name: Frontend lint
+      working-directory: ./client
+      run: |
+        npm ci
+        npm run lint
+        
+    - name: Go fmt check
+      working-directory: ./Go-Sdk
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Go code is not formatted properly:"
+          gofmt -s -l .
+          exit 1
+        fi
+        
+    - name: Rust fmt check
+      working-directory: ./early-wager-contract
+      run: cargo fmt --all -- --check
+      
+    - name: Generate code coverage report
+      id: coverage
+      uses: ix-ai/coverage-codesandbox@v2
+      with:
+        path: ./Go-Sdk
+        
+    - name: Comment PR with coverage
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        message: |
+          ## Code Coverage Report
+          ```
+          ${{ steps.coverage.outputs.coverage }}
+          ```
+
+  # Dependency checks
+  dependency-checks:
+    name: Dependency Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check for outdated npm packages
+      working-directory: ./client
+      run: |
+        npm ci
+        npx npm-check-updates --errorLevel 2
+        
+    - name: Check for outdated Go modules
+      working-directory: ./Go-Sdk
+      run: |
+        go list -u -m -json all | grep -E '"Path"|"Version"|"Time"' | sort
+        
+    - name: Check for outdated Rust crates
+      working-directory: ./early-wager-contract
+      run: cargo outdated --root-deps-only
+
+  # Performance checks
+  performance:
+    name: Performance Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Build and analyze frontend bundle
+      working-directory: ./client
+      run: |
+        npm ci
+        npm run build
+        npx bundlephobia-cli dist/
+        
+    - name: Lighthouse CI
+      working-directory: ./client
+      run: |
+        npm install -g @lhci/cli@0.12.x
+        lhci autorun
+      env:
+        LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}

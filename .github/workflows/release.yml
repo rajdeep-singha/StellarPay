@@ -1,0 +1,219 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  # Create GitHub Release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Changes since $PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "## Initial Release" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "First stable release of StellarPay" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: StellarPay ${{ github.ref_name }}
+        body: |
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## 📦 Artifacts
+          
+          ### Frontend
+          - React application built with Vite
+          - Optimized for production deployment
+          
+          ### Backend
+          - Go server with Stellar Horizon integration
+          - Ready for containerized deployment
+          
+          ### Smart Contracts
+          - Soroban contracts compiled to WASM
+          - Deployable to Stellar Testnet/Mainnet
+          
+          ## 🚀 Installation
+          
+          See [README.md](README.md) for detailed installation instructions.
+          
+          ## 🔗 Links
+          
+          - [Documentation](https://docs.stellarpay.app)
+          - [Live Demo](https://stellarpay.app)
+          - [API Reference](https://api.stellarpay.app)
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+  # Build and upload release assets
+  upload-assets:
+    name: Build & Upload Assets
+    runs-on: ubuntu-latest
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - name: frontend
+            path: client/dist
+            archive_name: frontend-dist
+          - name: backend
+            path: Go-Sdk/stellar-pay-server
+            archive_name: backend-binary
+          - name: contracts
+            path: early-wager-contract/contracts
+            archive_name: soroban-contracts
+            
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      if: matrix.name == 'frontend'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+        
+    - name: Setup Go
+      if: matrix.name == 'backend'
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        cache-dependency-path: Go-Sdk/go.sum
+        
+    - name: Setup Rust
+      if: matrix.name == 'contracts'
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: '1.75'
+        
+    - name: Install Stellar CLI
+      if: matrix.name == 'contracts'
+      run: |
+        wget -qO- https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-linux-x86_64.tar.gz | tar xz
+        sudo mv stellar /usr/local/bin/
+        
+    - name: Build frontend
+      if: matrix.name == 'frontend'
+      working-directory: ./client
+      run: |
+        npm ci
+        npm run build
+        
+    - name: Build backend
+      if: matrix.name == 'backend'
+      working-directory: ./Go-Sdk
+      run: |
+        go mod download
+        go build -v -o stellar-pay-server .
+        
+    - name: Build contracts
+      if: matrix.name == 'contracts'
+      run: |
+        cd early-wager-contract/contracts/early-wage && make build
+        cd ../token && make build
+        
+    - name: Create archive
+      run: |
+        mkdir -p release-assets/${{ matrix.archive_name }}
+        
+        if [ "${{ matrix.name }}" = "frontend" ]; then
+          cp -r ${{ matrix.path }}/* release-assets/${{ matrix.archive_name }}/
+        elif [ "${{ matrix.name }}" = "backend" ]; then
+          cp ${{ matrix.path }} release-assets/${{ matrix.archive_name }}/
+        elif [ "${{ matrix.name }}" = "contracts" ]; then
+          cp ${{ matrix.path }}/early-wage/target/wasm32-unknown-unknown/release/*.wasm release-assets/${{ matrix.archive_name }}/
+          cp ${{ matrix.path }}/token/target/wasm32-unknown-unknown/release/*.wasm release-assets/${{ matrix.archive_name }}/
+        fi
+        
+        cd release-assets
+        tar -czf ${{ matrix.archive_name }}.tar.gz ${{ matrix.archive_name }}/
+        sha256sum ${{ matrix.archive_name }}.tar.gz > ${{ matrix.archive_name }}.tar.gz.sha256
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./release-assets/${{ matrix.archive_name }}.tar.gz
+        asset_name: ${{ matrix.archive_name }}-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip
+        
+    - name: Upload Checksum
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./release-assets/${{ matrix.archive_name }}.tar.gz.sha256
+        asset_name: ${{ matrix.archive_name }}-${{ github.ref_name }}.tar.gz.sha256
+        asset_content_type: text/plain
+
+  # Update documentation
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [create-release, upload-assets]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Update version in docs
+      run: |
+        # Update version number in README
+        sed -i "s/Version: .*/Version: ${{ github.ref_name }}/" README.md
+        
+        # Update package.json version
+        if [ -f client/package.json ]; then
+          cd client
+          npm version ${{ github.ref_name }} --no-git-tag-version
+        fi
+        
+        # Commit changes
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md client/package.json
+        git commit -m "docs: update version to ${{ github.ref_name }}"
+        git push
