@@ -44,6 +44,7 @@ const EMP_DETAILS: Symbol = symbol_short!("EMP_DET");
 const WALLET_TO_ID: Symbol = symbol_short!("wal2id");
 const INITIALIZED: Symbol = symbol_short!("INIT");
 const SUPPORTED_TOKENS: Symbol = symbol_short!("SUP_TOK");
+const VAULT_MANAGERS: Symbol = symbol_short!("VAULT_MGR");
 
 // ============================================================
 // Data Types
@@ -211,11 +212,95 @@ impl EarlyWageContract {
     }
 
     // --------------------------------------------------------
+    // Dynamic Vault Management System
+    // --------------------------------------------------------
+
+    /// Create a dynamic token client for vault operations
+    fn create_token_client(e: &Env, token: &Address) -> token::Client {
+        token::Client::new(e, token)
+    }
+
+    /// Transfer tokens to vault with dynamic client creation
+    fn transfer_to_vault(
+        e: &Env,
+        from: &Address,
+        token: &Address,
+        amount: &i128,
+    ) -> Result<(), ContractError> {
+        let client = Self::create_token_client(e, token);
+        
+        // Check sender balance before transfer
+        if client.balance(from) < *amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
+        
+        client.transfer(from, &e.current_contract_address(), amount);
+        Ok(())
+    }
+
+    /// Transfer tokens from vault with dynamic client creation
+    fn transfer_from_vault(
+        e: &Env,
+        to: &Address,
+        token: &Address,
+        amount: &i128,
+    ) -> Result<(), ContractError> {
+        let client = Self::create_token_client(e, token);
+        
+        // Check vault balance before transfer
+        if client.balance(&e.current_contract_address()) < *amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
+        
+        client.transfer(&e.current_contract_address(), to, amount);
+        Ok(())
+    }
+
+    /// Get vault balance for a specific token
+    fn get_vault_balance(e: &Env, token: &Address) -> i128 {
+        let client = Self::create_token_client(e, token);
+        client.balance(&e.current_contract_address())
+    }
+
+    /// Register a vault manager for a specific token (admin only)
+    pub fn register_vault_manager(
+        e: Env,
+        token: Address,
+        manager: Address,
+    ) -> Result<(), ContractError> {
+        Self::require_admin(&e)?;
+
+        let mut managers: Map<Address, Address> = e
+            .storage()
+            .instance()
+            .get(&VAULT_MANAGERS)
+            .unwrap_or(Map::new(&e));
+
+        managers.set(token.clone(), manager.clone());
+        e.storage().instance().set(&VAULT_MANAGERS, &managers);
+
+        e.events()
+            .publish((symbol_short!("vault"), symbol_short!("manager_registered")), (token, manager));
+
+        Ok(())
+    }
+
+    /// Get vault manager for a token
+    pub fn get_vault_manager(e: Env, token: Address) -> Option<Address> {
+        let managers: Map<Address, Address> = e
+            .storage()
+            .instance()
+            .get(&VAULT_MANAGERS)
+            .unwrap_or(Map::new(&e));
+        managers.get(token)
+    }
+
+    // --------------------------------------------------------
     // Vault / Deposit
     // --------------------------------------------------------
 
     /// Deposit tokens into the contract vault. The caller must
-    /// authorize the transfer.
+    /// authorize the transfer. Uses dynamic vault management.
     pub fn deposit_to_vault(
         e: Env,
         from: Address,
@@ -228,12 +313,8 @@ impl EarlyWageContract {
             return Err(ContractError::InvalidAmount);
         }
 
-        let client = token::Client::new(&e, &token);
-        // Check user balance before cross-contract deposit
-        if client.balance(&from) < amount {
-            return Err(ContractError::InsufficientVaultBalance);
-        }
-        client.transfer(&from, &e.current_contract_address(), &amount);
+        // Use dynamic vault management
+        Self::transfer_to_vault(&e, &from, &token, &amount)?;
 
         e.events()
             .publish((symbol_short!("vault"), symbol_short!("deposit")), (from, amount, token));
@@ -241,13 +322,12 @@ impl EarlyWageContract {
         Ok(())
     }
 
-    /// Get vault balances for multiple tokens.
+    /// Get vault balances for multiple tokens using dynamic vault management.
     pub fn vault_balances_multi(e: Env, tokens: Vec<Address>) -> Map<Address, i128> {
         let mut balances: Map<Address, i128> = Map::new(&e);
         for i in 0..tokens.len() {
             let token_addr = tokens.get(i).unwrap();
-            let client = token::Client::new(&e, &token_addr);
-            let balance = client.balance(&e.current_contract_address());
+            let balance = Self::get_vault_balance(&e, &token_addr);
             balances.set(token_addr, balance);
         }
         balances
@@ -292,12 +372,8 @@ impl EarlyWageContract {
         let fee = amount * 125 / 10000; // 1.25 %
         let final_amount = amount - fee;
 
-        let client = token::Client::new(&e, &token);
-        // Check vault balance before cross-contract transfer
-        if client.balance(&e.current_contract_address()) < final_amount {
-            return Err(ContractError::InsufficientVaultBalance);
-        }
-        client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
+        // Use dynamic vault management
+        Self::transfer_from_vault(&e, &emp.wallet, &token, &final_amount)?;
 
         emp.rem_salary -= amount as u128;
         emp_map.set(emp_id, emp.clone());
@@ -340,12 +416,8 @@ impl EarlyWageContract {
             return Err(ContractError::NoRemainingSalary);
         }
 
-        let client = token::Client::new(&e, &token);
-        client.transfer(
-            &e.current_contract_address(),
-            &emp.wallet,
-            &(emp.rem_salary as i128),
-        );
+        // Use dynamic vault management
+        Self::transfer_from_vault(&e, &emp.wallet, &token, &(emp.rem_salary as i128))?;
 
         e.events().publish(
             (symbol_short!("release"),symbol_short!("released")),
@@ -364,10 +436,9 @@ impl EarlyWageContract {
     // Read-only Queries
     // --------------------------------------------------------
 
-    /// Return the contract vault's token balance.
+    /// Return the contract vault's token balance using dynamic vault management.
     pub fn vault_balance(e: Env, token: Address) -> i128 {
-        let client = token::Client::new(&e, &token);
-        client.balance(&e.current_contract_address())
+        Self::get_vault_balance(&e, &token)
     }
 
     /// Return an employee's full details.

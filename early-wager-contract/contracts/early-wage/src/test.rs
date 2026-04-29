@@ -344,6 +344,127 @@ fn test_release_nonexistent_employee_fails() {
 }
 
 // ============================================================
+// Dynamic Vault Management Tests
+// ============================================================
+
+#[test]
+fn test_register_vault_manager_success() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let manager = Address::generate(&env);
+    client.register_vault_manager(&token_client.address, &manager);
+
+    // Verify manager is registered
+    let retrieved_manager = client.get_vault_manager(&token_client.address);
+    assert_eq!(retrieved_manager.unwrap(), manager);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_register_vault_manager_unauthorized_fails() {
+    let (env, contract_id, _admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let unauthorized = Address::generate(&env);
+    client.register_vault_manager(&token_client.address, &unauthorized); // Should fail
+}
+
+#[test]
+fn test_dynamic_vault_deposit_withdrawal() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    let deposit_amount = 10_000i128;
+    let withdraw_amount = 5_000i128;
+
+    // Mint tokens to user
+    token_client.mint(&user, &deposit_amount);
+
+    // Deposit using dynamic vault management
+    client.deposit_to_vault(&user, &deposit_amount, &token_client.address);
+
+    // Verify vault balance
+    let balance = client.vault_balance(&token_client.address);
+    assert_eq!(balance, deposit_amount);
+
+    // Register employee and test advance (which uses dynamic vault withdrawal)
+    client.register_employee(&user, &20_000u128);
+    let net_amount = client.request_advance(&1u128, &withdraw_amount, &token_client.address);
+
+    // Verify vault balance decreased
+    let final_balance = client.vault_balance(&token_client.address);
+    let expected_fee = withdraw_amount * 125 / 10000;
+    let expected_final_balance = deposit_amount - withdraw_amount + expected_fee;
+    assert_eq!(final_balance, expected_final_balance);
+}
+
+#[test]
+fn test_vault_balances_multi_dynamic() {
+    let (env, contract_id, admin, token_client1) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    // Create second token
+    let token_client2 = create_token(&env, &admin);
+
+    // Deposit to both vaults
+    token_client1.mint(&admin, &50_000i128);
+    token_client2.mint(&admin, &30_000i128);
+
+    client.deposit_to_vault(&admin, &50_000i128, &token_client1.address);
+    client.deposit_to_vault(&admin, &30_000i128, &token_client2.address);
+
+    // Test multi-balance query using dynamic vault management
+    let tokens = vec![&env, token_client1.address.clone(), token_client2.address.clone()];
+    let balances = client.vault_balances_multi(&tokens);
+
+    assert_eq!(balances.get(token_client1.address).unwrap(), 50_000i128);
+    assert_eq!(balances.get(token_client2.address).unwrap(), 30_000i128);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #9)")]
+fn test_dynamic_vault_insufficient_balance_fails() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    
+    // Register employee but don't fund vault
+    client.register_employee(&user, &10_000u128);
+
+    // Try to request advance without vault funds - should fail with InsufficientVaultBalance
+    client.request_advance(&1u128, &5_000i128, &token_client.address);
+}
+
+#[test]
+fn test_release_remaining_salary_dynamic_vault() {
+    let (env, contract_id, admin, token_client) = setup();
+    let client = EarlyWageContractClient::new(&env, &contract_id);
+
+    let emp_wallet = Address::generate(&env);
+    let salary: u128 = 10_000;
+
+    client.register_employee(&emp_wallet, &salary);
+
+    // Fund the vault
+    token_client.mint(&admin, &100_000i128);
+    client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
+
+    // Request partial advance first
+    client.request_advance(&1u128, &3_000i128, &token_client.address);
+
+    // Release the remaining using dynamic vault management
+    let new_salary: u128 = 10_000;
+    client.release_remaining_salary(&1u128, &token_client.address, &new_salary);
+
+    // Verify salary reset
+    let remaining = client.get_remaining_salary(&1u128);
+    assert_eq!(remaining, new_salary);
+}
+
+// ============================================================
 // Query Tests
 // ============================================================
 
