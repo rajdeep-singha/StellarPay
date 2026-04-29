@@ -10,6 +10,7 @@ import WaitlistModal from "./WaitlistModal";
 import RegistrationCard from "./RegistrationCard";
 import { useEmployeeStore } from "../store/empStore";
 import { useCheckUser } from "../hooks/checkUser";
+import LivePriceTicker from "./LivePriceTicker";
 
 
 const HomePage = () => {
@@ -370,6 +371,8 @@ const HomePage = () => {
 
       {/* Dashboard Section */}
       <section className="max-w-7xl mx-auto px-6 py-8">
+        {/* Live XLM Price Ticker */}
+        <LivePriceTicker />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Balance Card */}
           <div className="lg:col-span-2">

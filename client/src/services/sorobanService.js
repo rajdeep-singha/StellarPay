@@ -11,6 +11,7 @@ import {
 } from "@stellar/stellar-sdk";
 
 import { signTransaction } from "@stellar/freighter-api";
+import { fetchExchangeRates as fetchLiveRates } from "./priceService";
 
 // Contract addresses (set these via VITE_* env vars)
 const CONTRACT_ADDRESS_TOKEN = import.meta.env.VITE_CONTRACT_TOKEN;
@@ -53,15 +54,12 @@ export const SUPPORTED_TOKENS = [
 ];
 
 // Fetch live exchange rates relative to USD
+// Delegates to priceService which uses StellarExpert (primary) + CoinGecko (fallback)
 export async function fetchExchangeRates() {
   try {
-    // Fallback mock rates — replace with real price feed in production
-    return {
-      XLM: 0.11,
-      USDC: 1.0,
-      EURC: 1.08,
-    };
+    return await fetchLiveRates();
   } catch {
+    // Hard fallback — only reached if priceService itself throws unexpectedly
     return { XLM: 0.11, USDC: 1.0, EURC: 1.08 };
   }
 }
