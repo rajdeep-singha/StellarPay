@@ -104,6 +104,12 @@ const HomePage = () => {
     try {
       const amountInStroops = Math.floor(parseFloat(amount) * 10000000);
 
+      // Ensure we have a valid employee ID before proceeding
+      if (!employeeId) {
+        showNotification("Employee registration required. Please register first.", "error");
+        return;
+      }
+
       const result = await requestAdvance(
         walletAddress,
         employeeId,

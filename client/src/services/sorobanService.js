@@ -219,10 +219,13 @@ export async function registerEmployee(publicKey, walletAddress, salary, salaryT
   }
 
   try {
+    // Handle native token case
+    const tokenAddress = salaryToken === "native" ? CONTRACT_ADDRESS_TOKEN : salaryToken;
+    
     const args = [
       addressToScVal(walletAddress),
       numberToU128(salary),
-      addressToScVal(salaryToken),
+      addressToScVal(tokenAddress),
     ];
 
     const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "register_employee", args);
