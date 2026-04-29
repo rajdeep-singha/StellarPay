@@ -803,14 +803,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
-name = "openzeppelin-fungible-token"
-version = "0.1.0"
-source = "git+https://github.com/OpenZeppelin/stellar-contracts?tag=v0.1.0#f7263bf70ef70af9fdde418cb1facc861edd49c1"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
 name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1034,9 +1026,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -1169,9 +1161,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-snapshot"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80bbe59497cb50e81861187e6bd2a2c805df253573d44ed56e7d373f79530758"
+checksum = "c30035cf1e8f02f65de3e594b6da113ecdaf1cd134d8480961d62568bb15adaf"
 dependencies = [
  "serde",
  "serde_json",
@@ -1183,9 +1175,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c85edd55eb09aa5dd7ba5ab595d2be7ac3f453e90e2f26d704ff26c130f2926f"
+checksum = "ff18e8d7ca6d5340a211605ca2c86383bd4dfacc4f8253d72a1573974ffffe69"
 dependencies = [
  "arbitrary",
  "bytes-lit",
@@ -1205,9 +1197,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk-macros"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a141230aa65006d4b3eeee9d0589172d734a2abfbe15b84670e38e76e200b370"
+checksum = "42b205cd86b34d530db87667bd287fbb194166d79b368227fd842110a914fde8"
 dependencies = [
  "crate-git-revision",
  "darling",
@@ -1225,9 +1217,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-spec"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b54326e9516b33be99c701b37242b27efb8e66cc1f1eff994b9d9a013a4be136"
+checksum = "cb6a16f2de28852c759f4da5f28cda54ec0d8dfa4c0e6e8cb3495234a72b0cea"
 dependencies = [
  "base64 0.13.1",
  "stellar-xdr",
@@ -1237,9 +1229,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-spec-rust"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f009cab4dfd653bc94a06c5022f1ca9d30e198b0e451f84cf307231563d11de2"
+checksum = "cdc6db5902ab21290dddf63fec4ee95703fe59891a947646e7b8607536f043fc"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -1253,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-token-sdk"
-version = "22.0.7"
+version = "22.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "858a3c2d7fce27bd105c4747850dfb2b0d945eb8880aeaa963d5c8ac659ca105"
+checksum = "0beb76f6bf6871287c688bfb0e5f24c19448e46c7bb2b6b596f7baf0455bdb69"
 dependencies = [
  "soroban-sdk",
 ]
@@ -1294,23 +1286,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stellar-constants"
-version = "0.1.0"
-source = "git+https://github.com/OpenZeppelin/stellar-contracts#4f18e0cd0e1d49b2f27e30e8fa5206e95ea4c178"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "stellar-fungible"
-version = "0.1.0"
-source = "git+https://github.com/OpenZeppelin/stellar-contracts#4f18e0cd0e1d49b2f27e30e8fa5206e95ea4c178"
-dependencies = [
- "soroban-sdk",
- "stellar-constants",
-]
 
 [[package]]
 name = "stellar-strkey"
@@ -1428,10 +1403,8 @@ dependencies = [
 name = "token"
 version = "0.0.0"
 dependencies = [
- "openzeppelin-fungible-token",
  "soroban-sdk",
  "soroban-token-sdk",
- "stellar-fungible",
 ]
 
 [[package]]
