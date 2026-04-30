@@ -279,7 +279,7 @@ func sendAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add timeout context for transaction processing
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	_, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	var req TransferRequest
@@ -339,7 +339,6 @@ func sendAsset(w http.ResponseWriter, r *http.Request) {
 
 	// Use context for network requests
 	client := horizonclient.DefaultTestNetClient
-	client.SetHTTPClient(&http.Client{Timeout: 10 * time.Second})
 	
 	ar := horizonclient.AccountRequest{AccountID: sourceKP.Address()}
 	sourceAccount, err := client.AccountDetail(ar)
@@ -460,7 +459,7 @@ func main() {
 
 	// Register handlers with validation and auth middleware
 	mux.HandleFunc("/api/send", validateRequestMiddleware(apiKeyAuth(sendAsset)))
-	mux.HandleFunc("/api/balances", validateRequestMiddleware(getAccountBalances))
+	mux.HandleFunc("/api/balances", apiKeyAuth(validateRequestMiddleware(getAccountBalances)))
 	mux.HandleFunc("/api/health", healthCheck)
 
 	port := os.Getenv("PORT")
