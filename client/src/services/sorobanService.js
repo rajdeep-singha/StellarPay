@@ -222,7 +222,7 @@ export async function registerEmployee(publicKey, walletAddress, salary, salaryT
     const args = [
       addressToScVal(walletAddress),
       numberToU128(salary),
-      addressToScVal(salaryToken),
+      addressToScVal(salaryToken || "native"),
     ];
 
     const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "register_employee", args);
@@ -230,7 +230,19 @@ export async function registerEmployee(publicKey, walletAddress, salary, salaryT
 
     const result = await submitTransaction(signedTx);
     console.log("registerEmployee transaction success:", result);
-    return result;
+    
+    // Extract employee ID from transaction result if available
+    let employeeId = null;
+    if (result.result) {
+      try {
+        const scVal = xdr.ScVal.fromXDR(result.result);
+        employeeId = Number(scVal.u128().lo().toString());
+      } catch (e) {
+        console.warn("Could not extract employee ID from result:", e);
+      }
+    }
+    
+    return { ...result, employeeId };
   } catch (error) {
     console.error("registerEmployee error:", error);
     throw error;

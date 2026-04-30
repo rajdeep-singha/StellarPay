@@ -159,7 +159,7 @@ func TestHealthCheck(t *testing.T) {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
 
-	var body map[string]string
+	var body map[string]interface{}
 	json.NewDecoder(rr.Body).Decode(&body)
 
 	if body["status"] != "ok" {
@@ -170,22 +170,22 @@ func TestHealthCheck(t *testing.T) {
 	}
 }
 
-func TestSendLumens_InvalidMethod(t *testing.T) {
+func TestSendAsset_InvalidMethod(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/send", nil)
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rr.Code)
 	}
 }
 
-func TestSendLumens_InvalidJSON(t *testing.T) {
+func TestSendAsset_InvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBufferString("not json"))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -198,16 +198,12 @@ func TestSendLumens_InvalidJSON(t *testing.T) {
 	}
 }
 
-func sendLumens(rr *httptest.ResponseRecorder, req *http.Request) {
-	panic("unimplemented")
-}
-
-func TestSendLumens_MissingRecipient(t *testing.T) {
+func TestSendAsset_MissingRecipient(t *testing.T) {
 	body, _ := json.Marshal(TransferRequest{Recipient: "", Amount: "100"})
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -220,19 +216,19 @@ func TestSendLumens_MissingRecipient(t *testing.T) {
 	}
 }
 
-func TestSendLumens_InvalidRecipient(t *testing.T) {
+func TestSendAsset_InvalidRecipient(t *testing.T) {
 	body, _ := json.Marshal(TransferRequest{Recipient: "INVALID", Amount: "100"})
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	sendLumens(rr, req)
+	sendAsset(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }
 
-func TestSendLumens_InvalidAmount(t *testing.T) {
+func TestSendAsset_InvalidAmount(t *testing.T) {
 	validAddr := "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 
 	tests := []struct {
@@ -252,7 +248,7 @@ func TestSendLumens_InvalidAmount(t *testing.T) {
 			req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 			rr := httptest.NewRecorder()
 
-			sendLumens(rr, req)
+			sendAsset(rr, req)
 
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", rr.Code)
@@ -265,6 +261,105 @@ func TestSendLumens_InvalidAmount(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ============================================================
+// Authentication Tests
+// ============================================================
+
+func TestApiKeyAuth(t *testing.T) {
+	os.Setenv("API_KEY", "test-api-key")
+	defer os.Unsetenv("API_KEY")
+
+	handler := apiKeyAuth(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"message": "success"})
+	})
+
+	t.Run("Valid API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-API-Key", "test-api-key")
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+	})
+
+	t.Run("Missing API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/test", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+
+		var apiErr APIError
+		json.NewDecoder(rr.Body).Decode(&apiErr)
+		if apiErr.Code != "UNAUTHORIZED" {
+			t.Errorf("expected code UNAUTHORIZED, got %v", apiErr.Code)
+		}
+	})
+
+	t.Run("Invalid API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/test", nil)
+		req.Header.Set("X-API-Key", "wrong-key")
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("No API key env var (bypass auth)", func(t *testing.T) {
+		os.Unsetenv("API_KEY")
+		defer os.Setenv("API_KEY", "test-api-key")
+
+		req, _ := http.NewRequest("GET", "/test", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 (bypass), got %d", rr.Code)
+		}
+	})
+}
+
+func TestGetAccountBalances(t *testing.T) {
+	t.Run("Missing account_id parameter", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/api/balances", nil)
+		rr := httptest.NewRecorder()
+
+		getAccountBalances(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+
+		var apiErr APIError
+		json.NewDecoder(rr.Body).Decode(&apiErr)
+		if apiErr.Code != "INVALID_REQUEST" {
+			t.Errorf("expected code INVALID_REQUEST, got %v", apiErr.Code)
+		}
+	})
+
+	t.Run("Valid account_id parameter", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/api/balances?account_id=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", nil)
+		rr := httptest.NewRecorder()
+
+		getAccountBalances(rr, req)
+
+		// This might fail due to network issues, but should return 500 for network errors, not 400
+		if rr.Code != http.StatusOK && rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 200 or 500, got %d", rr.Code)
+		}
+	})
 }
 
 // ============================================================

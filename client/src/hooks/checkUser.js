@@ -11,15 +11,17 @@ export function useCheckUser() {
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
     const setError = useEmployeeStore((state) => state.setError);
     const setLoading = useEmployeeStore((state) => state.setLoading);
+    const setWalletAddress = useEmployeeStore((state) => state.setWalletAddress);
+    const walletAddress = useEmployeeStore((state) => state.walletAddress);
 
-    const checkUser = useCallback(async (address) => {
-        if (!address) {
+    const checkUser = useCallback(async () => {
+        if (!walletAddress) {
             return { isRegistered: false };
         }
 
         try {
-            setLoading(true)
-            const empData = await getEmployeeWithWA(address);
+            setLoading(true);
+            const empData = await getEmployeeWithWA(walletAddress);
 
             if (!empData) {
                 return { isRegistered: false };
@@ -29,6 +31,7 @@ export function useCheckUser() {
                 empId: empData.empId,
                 salary: empData.rem_salary / 10000000,
                 email: empData.email,
+                walletAddress: walletAddress,
             })
             return { isRegistered: true, empData };
 
@@ -40,7 +43,8 @@ export function useCheckUser() {
                 error.message?.includes("InvalidAction") ||
                 error.message?.includes("simulation failed") ||
                 error.message?.includes("Wallet not registered") ||
-                error.message?.includes("Invalid contract ID");
+                error.message?.includes("Invalid contract ID") ||
+                error.message?.includes("EmployeeNotFound");
 
             if (!isNotRegistered) {
                 console.error("checkUser caught an unexpected bug, NOT a simple 'wallet missing' error:", error);
@@ -51,7 +55,7 @@ export function useCheckUser() {
         finally {
             setLoading(false);
         }
-    }, []);
+    }, [setEmpData, setError, setLoading, setWalletAddress, walletAddress]);
 
     return { checkUser }
 }

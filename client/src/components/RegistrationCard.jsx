@@ -5,7 +5,7 @@ import { useWalletContext } from "../context/WalletContext";
 import Card from "./Cards";
 import Button from "./Button";
 import InputField from "./InputField";
-
+import RegistrationConfirmation from "./RegistrationConfirmation";
 
 const RegistrationCard = ({ onSuccess }) => {
     const { walletAddress } = useWalletContext();
@@ -14,6 +14,9 @@ const RegistrationCard = ({ onSuccess }) => {
     const isRegistered = useEmployeeStore((state) => state.isRegistered);
     // Remove global loading states that get stuck on app init
     const [isLoading, setIsLoading] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [registrationData, setRegistrationData] = useState(null);
+    const [transactionHash, setTransactionHash] = useState(null);
 
     const [form, setForm] = useState({
         salary: "",
@@ -63,9 +66,12 @@ const RegistrationCard = ({ onSuccess }) => {
                 return;
             }
 
+            // Store employee ID from transaction result if available
+            const employeeId = resp.employeeId || null;
+
             // Fast & Safe Recursive Strategy: The blockchain takes a few seconds to sync.
             // We recursively poll the network without blocking the main event thread.
-            const safeSyncProfile = async (attempts = 3) => {
+            const safeSyncProfile = async (attempts = 5) => {
                 const data = await getEmployeeWithWA(walletAddress);
                 if (data) return data; // Success! Sync caught up.
                 if (attempts <= 0) throw new Error("Registration confirmed, but profile failed to sync.");
@@ -75,23 +81,30 @@ const RegistrationCard = ({ onSuccess }) => {
 
             const empData = await safeSyncProfile();
 
-            setEmpData({
-                empId: empData?.empId || null,
+            const finalEmployeeData = {
+                empId: empData?.empId || employeeId,
                 salary: Number(form.salary),
                 email: form.email,
+                walletAddress: walletAddress,
                 isRegistered: true,
-            });
+            };
 
-            onSuccess?.();
+            setEmpData(finalEmployeeData);
+            setRegistrationData(finalEmployeeData);
+            setTransactionHash(resp.hash);
+            setShowConfirmation(true);
         } catch (error) {
             // Check if the Blockchain rejected it because we are ALREADY registered
-            if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
+            if (error.message?.includes("AlreadyRegistered") || 
+                error.message?.includes("InvalidAction") || 
+                error.message?.includes("UnreachableCodeReached")) {
                 try {
                     const existingData = await getEmployeeWithWA(walletAddress);
                     setEmpData({
                         empId: existingData?.empId || null,
                         salary: existingData.rem_salary / 10000000,
-                        email: existingData.email,
+                        email: existingData.email || form.email,
+                        walletAddress: walletAddress,
                         isRegistered: true, // Force Zustand to see us!
                     });
                     if (onSuccess) onSuccess(); // Notify HomePage
@@ -111,6 +124,21 @@ const RegistrationCard = ({ onSuccess }) => {
 
 
     // Modal is controlled by HomePage state now
+
+    const handleConfirmationContinue = () => {
+        setShowConfirmation(false);
+        onSuccess?.();
+    };
+
+    if (showConfirmation && registrationData) {
+        return (
+            <RegistrationConfirmation
+                employeeData={registrationData}
+                onContinue={handleConfirmationContinue}
+                transactionHash={transactionHash}
+            />
+        );
+    }
 
     return (
         <>
