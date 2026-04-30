@@ -168,9 +168,10 @@ impl EarlyWageContract {
         if salary == 0 {
             return Err(ContractError::InvalidAmount);
         }
-        
+
         // Add reasonable salary limits to prevent absurd values
-        if salary > 10_000_000_000_000_000 { // 10 billion XLM in stroops
+        if salary > 10_000_000_000_000_000 {
+            // 10 billion XLM in stroops
             return Err(ContractError::InvalidAmount);
         }
 
