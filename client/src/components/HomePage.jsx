@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useWalletContext } from "../context/WalletContext";
-import { requestAdvance, getRemainingSalary,  CONTRACTS } from "../services/sorobanService";
+import { requestAdvance, CONTRACTS } from "../services/sorobanService";
 import { sendLumens } from "../services/apiService";
 import PayCycleProgress from "./PayCycleProgress";
 import WithdrawForm from "./WithdrawForm";

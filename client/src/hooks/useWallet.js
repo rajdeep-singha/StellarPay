@@ -152,8 +152,8 @@ export function useWallet() {
         setWalletAddress(address);
 
         try {
-          const { network } = await freighterApi.getNetwork();
-        } catch (e) {
+          await freighterApi.getNetwork();
+        } catch {
           // Silent fallback if network cannot be fetched
         }
 
