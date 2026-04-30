@@ -271,8 +271,6 @@ func TestSendAsset_InvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBufferString("not json"))
 	rr := httptest.NewRecorder()
 	sendAsset(rr, req)
-	sendAsset(rr, req)
->>>>>>> Stashed changes
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
@@ -411,8 +409,6 @@ func TestGetAccountBalances_MissingAccountID(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&apiErr)
 	if apiErr.Code != "INVALID_REQUEST" {
 		t.Errorf("expected code INVALID_REQUEST, got %v", apiErr.Code)
-	}
-}
 	}
 }
 
