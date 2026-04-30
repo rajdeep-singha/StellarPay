@@ -270,6 +270,52 @@ func TestSendLumens_InvalidAmount(t *testing.T) {
 }
 
 // ============================================================
+// /api/balances Auth Tests
+// ============================================================
+
+func TestGetAccountBalances_RequiresAuth(t *testing.T) {
+	os.Setenv("API_KEY", "test-secret-key")
+	defer os.Unsetenv("API_KEY")
+
+	handler := apiKeyAuth(getAccountBalances)
+
+	t.Run("rejects request with no API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/api/balances?account_id=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+		var apiErr APIError
+		json.NewDecoder(rr.Body).Decode(&apiErr)
+		if apiErr.Code != "UNAUTHORIZED" {
+			t.Errorf("expected code UNAUTHORIZED, got %v", apiErr.Code)
+		}
+	})
+
+	t.Run("rejects request with wrong API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/api/balances?account_id=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", nil)
+		req.Header.Set("X-API-Key", "wrong-key")
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("passes through with correct API key", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/api/balances?account_id=", nil)
+		req.Header.Set("X-API-Key", "test-secret-key")
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		// getAccountBalances returns 400 for missing account_id — auth passed
+		if rr.Code == http.StatusUnauthorized {
+			t.Errorf("expected auth to pass, got 401")
+		}
+	})
+}
+
+// ============================================================
 // Helpers
 // ============================================================
 
