@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func init() {
+	os.Setenv("STELLAR_SOURCE_SECRET", "SDXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ")
+}
+
 // ============================================================
 // Validation Unit Tests
 // ============================================================

@@ -31,6 +31,8 @@ pub enum ContractError {
     InvalidAmount = 7,
     /// No remaining salary to release.
     NoRemainingSalary = 8,
+    /// Insufficient vault balance for transfer.
+    InsufficientVaultBalance = 9,
 }
 
 // ============================================================
@@ -87,8 +89,7 @@ impl EarlyWageContract {
         e.storage().instance().set(&INITIALIZED, &true);
         e.storage().instance().set(&EMP_COUNT, &0u128);
 
-        e.events()
-            .publish((symbol_short!("init"),), admin.clone());
+        e.events().publish((symbol_short!("init"),), admin.clone());
 
         Ok(())
     }
@@ -167,6 +168,11 @@ impl EarlyWageContract {
         if salary == 0 {
             return Err(ContractError::InvalidAmount);
         }
+        
+        // Add reasonable salary limits to prevent absurd values
+        if salary > 10_000_000_000_000_000 { // 10 billion XLM in stroops
+            return Err(ContractError::InvalidAmount);
+        }
 
         let mut wallet_map: Map<Address, u128> = e
             .storage()
@@ -202,8 +208,10 @@ impl EarlyWageContract {
         e.storage().instance().set(&WALLET_TO_ID, &wallet_map);
         e.storage().instance().set(&EMP_COUNT, &emp_id);
 
-        e.events()
-            .publish((symbol_short!("employee"), symbol_short!("reg")), (emp_id, wallet));
+        e.events().publish(
+            (symbol_short!("employee"), symbol_short!("reg")),
+            (emp_id, wallet),
+        );
 
         Ok(emp_id)
     }
@@ -229,12 +237,14 @@ impl EarlyWageContract {
         let client = token::Client::new(&e, &token);
         // Check user balance before cross-contract deposit
         if client.balance(&from) < amount {
-            return Err(ContractError::InvalidAmount);
+            return Err(ContractError::InsufficientVaultBalance);
         }
         client.transfer(&from, &e.current_contract_address(), &amount);
 
-        e.events()
-            .publish((symbol_short!("vault"), symbol_short!("deposit")), (from, amount, token));
+        e.events().publish(
+            (symbol_short!("vault"), symbol_short!("deposit")),
+            (from, amount, token),
+        );
 
         Ok(())
     }
@@ -283,7 +293,7 @@ impl EarlyWageContract {
         // Authorization: only the employee can request their own advance
         emp.wallet.require_auth();
 
-        if amount as u128 >= emp.rem_salary {
+        if amount as u128 > emp.rem_salary {
             return Err(ContractError::ExceedsRemainingSalary);
         }
 
@@ -291,6 +301,10 @@ impl EarlyWageContract {
         let final_amount = amount - fee;
 
         let client = token::Client::new(&e, &token);
+        // Check vault balance before cross-contract transfer
+        if client.balance(&e.current_contract_address()) < final_amount {
+            return Err(ContractError::InsufficientVaultBalance);
+        }
         client.transfer(&e.current_contract_address(), &emp.wallet, &final_amount);
 
         emp.rem_salary -= amount as u128;
@@ -298,8 +312,10 @@ impl EarlyWageContract {
 
         e.storage().instance().set(&EMP_DETAILS, &emp_map);
 
-        e.events()
-            .publish((symbol_short!("advance"), symbol_short!("requested")), (emp_id, amount, fee, final_amount, token));
+        e.events().publish(
+            (symbol_short!("advance"), symbol_short!("requested")),
+            (emp_id, amount, fee, final_amount, token),
+        );
 
         Ok(final_amount)
     }
@@ -342,7 +358,7 @@ impl EarlyWageContract {
         );
 
         e.events().publish(
-            (symbol_short!("release"),symbol_short!("released")),
+            (symbol_short!("release"), symbol_short!("released")),
             (emp_id, emp.rem_salary, token),
         );
 

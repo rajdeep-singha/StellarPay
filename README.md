@@ -16,6 +16,10 @@ $2,000 rewarded every month to validated builders.
 [![Go](https://img.shields.io/badge/Go-Backend-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev)
 [![Rust](https://img.shields.io/badge/Rust-Contracts-000000?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Smart Contract CI](https://github.com/rajdeep-singha/StellarPay/actions/workflows/contract.yml/badge.svg)](https://github.com/rajdeep-singha/StellarPay/actions/workflows/contract.yml)
+[![Go Backend CI](https://github.com/rajdeep-singha/StellarPay/actions/workflows/backend.yml/badge.svg)](https://github.com/rajdeep-singha/StellarPay/actions/workflows/backend.yml)
+[![React Frontend CI](https://github.com/rajdeep-singha/StellarPay/actions/workflows/frontend.yml/badge.svg)](https://github.com/rajdeep-singha/StellarPay/actions/workflows/frontend.yml)
+[![Deploy](https://github.com/rajdeep-singha/StellarPay/actions/workflows/deploy.yml/badge.svg)](https://github.com/rajdeep-singha/StellarPay/actions/workflows/deploy.yml)
 
 *Built on Stellar Blockchain — powering global remittance, Early Wage Access (EWA), and modern payroll systems.*
 
@@ -26,6 +30,9 @@ $2,000 rewarded every month to validated builders.
 </div>
 
 ---
+
+## User Feedback
+<img width="1234" height="776" alt="image" src="https://github.com/user-attachments/assets/c1e8645e-aadc-4975-8533-203486b389b1" />
 
 ##  About
 
@@ -173,6 +180,12 @@ Stellar-Pay/
 | `vault_balance(token)` | Get vault balance |
 
 ---
+
+
+## CI/CD Logic 
+<img width="568" height="159" alt="image" src="https://github.com/user-attachments/assets/d8b4f1db-2439-445a-bccf-f1ce6baff27a" />
+<img width="1470" height="847" alt="image" src="https://github.com/user-attachments/assets/669e69eb-ca99-432f-a67d-e38bd8056dd3" />
+
 
 ##  Why StellarPay?
 

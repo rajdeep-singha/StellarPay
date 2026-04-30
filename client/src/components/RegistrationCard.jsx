@@ -10,8 +10,7 @@ import RegistrationConfirmation from "./RegistrationConfirmation";
 const RegistrationCard = ({ onSuccess }) => {
     const { walletAddress } = useWalletContext();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
-    const setError = useEmployeeStore((state) => state.setError);
-    const isRegistered = useEmployeeStore((state) => state.isRegistered);
+
     // Remove global loading states that get stuck on app init
     const [isLoading, setIsLoading] = useState(false);
     const [showConfirmation, setShowConfirmation] = useState(false);
@@ -57,9 +56,14 @@ const RegistrationCard = ({ onSuccess }) => {
             setIsLoading(true);
             const salaryInStroops = Math.floor(Number(form.salary) * 10000000);
 
-            console.debug("Attempting employee registration", { walletAddress, salaryInStroops });
+            // Debug logging for development
+            if (import.meta.env.DEV) {
+                console.debug("Attempting employee registration", { walletAddress, salaryInStroops });
+            }
             const resp = await registerEmployee(walletAddress, walletAddress, salaryInStroops);
-            console.log("registerEmployee response", resp);
+            if (import.meta.env.DEV) {
+                console.log("registerEmployee response", resp);
+            }
 
             if (!resp.success) {
                 setErrors({ ...error, general: "Registration failed. Please try again." });
