@@ -20,7 +20,6 @@
 
     // Active token info
     const activeToken = selectedToken || { symbol: "XLM", icon: "⭐", decimals: 7 };
-    const activeBalance = maxAmount;
 
     // USD value display
     const usdRate = exchangeRates[activeToken.symbol];

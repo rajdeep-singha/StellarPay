@@ -106,7 +106,7 @@ const EmployerDashboard = () => {
     }
   };
 
-  const handleExportEmployees = () => {
+  const _handleExportEmployees = () => {
     try {
       exportEmployeePayments(employees);
       showNotification("Employee payment data exported successfully");
@@ -115,7 +115,7 @@ const EmployerDashboard = () => {
     }
   };
 
-  const handleExportVault = () => {
+  const _handleExportVault = () => {
     try {
       const vaultData = {
         balance: vaultBalance,
@@ -131,7 +131,7 @@ const EmployerDashboard = () => {
     }
   };
 
-  const handleExportFullReport = () => {
+  const _handleExportFullReport = () => {
     try {
       const vaultData = {
         balance: vaultBalance,

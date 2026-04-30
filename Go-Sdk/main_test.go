@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func init() {
+	os.Setenv("STELLAR_SOURCE_SECRET", "SDXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ")
+}
+
 // ============================================================
 // Validation Unit Tests
 // ============================================================
@@ -203,7 +207,6 @@ func TestHealthCheck(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
-<<<<<<< Updated upstream
 
 	// healthCheck returns a mixed-type object; decode into interface{} map.
 	var body map[string]interface{}
@@ -213,11 +216,6 @@ func TestHealthCheck(t *testing.T) {
 
 	if body["status"] != "ok" && body["status"] != "degraded" {
 		t.Errorf("unexpected status value: %v", body["status"])
-=======
-	var body map[string]interface{}
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
->>>>>>> Stashed changes
 	}
 	if body["network"] != "testnet" {
 		t.Errorf("expected network=testnet, got %v", body["network"])
@@ -235,13 +233,9 @@ func TestHealthCheck(t *testing.T) {
 func TestSendAsset_InvalidMethod(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/send", nil)
 	rr := httptest.NewRecorder()
-<<<<<<< Updated upstream
 
 	sendAsset(rr, req)
 
-=======
-	sendAsset(rr, req)
->>>>>>> Stashed changes
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rr.Code)
 	}
@@ -252,14 +246,6 @@ func TestSendAsset_InvalidMethod(t *testing.T) {
 	}
 }
 
-<<<<<<< Updated upstream
-func TestSendAsset_InvalidJSON(t *testing.T) {
-	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBufferString("not json"))
-	rr := httptest.NewRecorder()
-
-	sendAsset(rr, req)
-
-=======
 func TestSendAsset_MissingSourceSecret(t *testing.T) {
 	os.Unsetenv("STELLAR_SOURCE_SECRET")
 	body, _ := json.Marshal(TransferRequest{
@@ -285,6 +271,7 @@ func TestSendAsset_InvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBufferString("not json"))
 	rr := httptest.NewRecorder()
 	sendAsset(rr, req)
+	sendAsset(rr, req)
 >>>>>>> Stashed changes
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -297,21 +284,12 @@ func TestSendAsset_InvalidJSON(t *testing.T) {
 }
 
 func TestSendAsset_MissingRecipient(t *testing.T) {
-<<<<<<< Updated upstream
-	body, _ := json.Marshal(TransferRequest{Recipient: "", Amount: "100"})
-	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
-	rr := httptest.NewRecorder()
-
-	sendAsset(rr, req)
-
-=======
 	os.Setenv("STELLAR_SOURCE_SECRET", "SCZANGBA5RLMPI7JMTP2BYASZVIL7XQ4BQJVZRPNZXCQFZXHTT7JSIK")
 	defer os.Unsetenv("STELLAR_SOURCE_SECRET")
 	body, _ := json.Marshal(TransferRequest{Recipient: "", Amount: "100"})
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 	sendAsset(rr, req)
->>>>>>> Stashed changes
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
@@ -323,21 +301,12 @@ func TestSendAsset_MissingRecipient(t *testing.T) {
 }
 
 func TestSendAsset_InvalidRecipient(t *testing.T) {
-<<<<<<< Updated upstream
-	body, _ := json.Marshal(TransferRequest{Recipient: "INVALID", Amount: "100"})
-	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
-	rr := httptest.NewRecorder()
-
-	sendAsset(rr, req)
-
-=======
 	os.Setenv("STELLAR_SOURCE_SECRET", "SCZANGBA5RLMPI7JMTP2BYASZVIL7XQ4BQJVZRPNZXCQFZXHTT7JSIK")
 	defer os.Unsetenv("STELLAR_SOURCE_SECRET")
 	body, _ := json.Marshal(TransferRequest{Recipient: "INVALID", Amount: "100"})
 	req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 	sendAsset(rr, req)
->>>>>>> Stashed changes
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
@@ -349,11 +318,8 @@ func TestSendAsset_InvalidRecipient(t *testing.T) {
 }
 
 func TestSendAsset_InvalidAmount(t *testing.T) {
-<<<<<<< Updated upstream
-=======
 	os.Setenv("STELLAR_SOURCE_SECRET", "SCZANGBA5RLMPI7JMTP2BYASZVIL7XQ4BQJVZRPNZXCQFZXHTT7JSIK")
 	defer os.Unsetenv("STELLAR_SOURCE_SECRET")
->>>>>>> Stashed changes
 	validAddr := "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 	cases := []struct {
 		name   string
@@ -370,13 +336,7 @@ func TestSendAsset_InvalidAmount(t *testing.T) {
 			body, _ := json.Marshal(TransferRequest{Recipient: validAddr, Amount: tc.amount})
 			req, _ := http.NewRequest("POST", "/api/send", bytes.NewBuffer(body))
 			rr := httptest.NewRecorder()
-<<<<<<< Updated upstream
-
 			sendAsset(rr, req)
-
-=======
-			sendAsset(rr, req)
->>>>>>> Stashed changes
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", rr.Code)
 			}
@@ -389,7 +349,6 @@ func TestSendAsset_InvalidAmount(t *testing.T) {
 	}
 }
 
-<<<<<<< Updated upstream
 // TestGetAccountBalances_RequiresAuth verifies that /api/balances rejects
 // requests that do not supply a valid API key when one is configured.
 func TestGetAccountBalances_RequiresAuth(t *testing.T) {
@@ -413,26 +372,6 @@ func TestGetAccountBalances_RequiresAuth(t *testing.T) {
 	}
 }
 
-// TestGetAccountBalances_MissingAccountID verifies the handler rejects
-// requests that omit the required account_id query parameter.
-func TestGetAccountBalances_MissingAccountID(t *testing.T) {
-	// No API_KEY set — middleware passes through.
-	os.Unsetenv("API_KEY")
-
-	req, _ := http.NewRequest("GET", "/api/balances", nil)
-	rr := httptest.NewRecorder()
-
-	getAccountBalances(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for missing account_id, got %d", rr.Code)
-	}
-
-	var apiErr APIError
-	json.NewDecoder(rr.Body).Decode(&apiErr)
-	if apiErr.Code != "INVALID_REQUEST" {
-		t.Errorf("expected code INVALID_REQUEST, got %v", apiErr.Code)
-=======
 func TestSendAsset_NonNativeAssetMissingIssuer(t *testing.T) {
 	os.Setenv("STELLAR_SOURCE_SECRET", "SCZANGBA5RLMPI7JMTP2BYASZVIL7XQ4BQJVZRPNZXCQFZXHTT7JSIK")
 	defer os.Unsetenv("STELLAR_SOURCE_SECRET")
@@ -455,18 +394,25 @@ func TestSendAsset_NonNativeAssetMissingIssuer(t *testing.T) {
 	}
 }
 
+// TestGetAccountBalances_MissingAccountID verifies the handler rejects
+// requests that omit the required account_id query parameter.
 func TestGetAccountBalances_MissingAccountID(t *testing.T) {
+	// No API_KEY set — middleware passes through.
+	os.Unsetenv("API_KEY")
+
 	req, _ := http.NewRequest("GET", "/api/balances", nil)
 	rr := httptest.NewRecorder()
 	getAccountBalances(rr, req)
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rr.Code)
+		t.Errorf("expected 400 for missing account_id, got %d", rr.Code)
 	}
+
 	var apiErr APIError
 	json.NewDecoder(rr.Body).Decode(&apiErr)
 	if apiErr.Code != "INVALID_REQUEST" {
-		t.Errorf("expected INVALID_REQUEST, got %q", apiErr.Code)
->>>>>>> Stashed changes
+		t.Errorf("expected code INVALID_REQUEST, got %v", apiErr.Code)
+	}
+}
 	}
 }
 
