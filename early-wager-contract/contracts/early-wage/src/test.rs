@@ -1,32 +1,44 @@
-#![cfg(test)]
+// Tests for the EarlyWageContract.
+// Note: this module is already gated by `#[cfg(test)] mod test;` in lib.rs.
 
 use super::*;
-use soroban_sdk::{
-    testutils::{Address as _, Events},
-    vec, Address, Env, IntoVal,
-};
+use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
-// Helper: deploy the token contract from the companion crate and mint
-// initial supply to a given address.
-fn create_token<'a>(e: &Env, admin: &Address) -> token::Client<'a> {
-    let token_address = e.register_stellar_asset_contract_v2(admin.clone()).address().clone();
-    token::Client::new(e, &token_address)
+// Helper: deploy a Stellar Asset Contract and return both clients.
+// - `TokenClient` is the SEP-41 interface (balance, transfer, …)
+// - `StellarAssetClient` is the admin interface (mint, clawback, …)
+fn create_token(
+    e: &Env,
+    admin: &Address,
+) -> (token::Client<'static>, token::StellarAssetClient<'static>) {
+    let sac = e.register_stellar_asset_contract_v2(admin.clone());
+    let addr = sac.address().clone();
+    (
+        token::Client::new(e, &addr),
+        token::StellarAssetClient::new(e, &addr),
+    )
 }
 
-/// Setup helper — returns (env, contract_address, admin, token_client).
-fn setup() -> (Env, Address, Address, token::Client<'static>) {
+/// Setup helper — returns (env, contract_address, admin, token_client, sac_client).
+fn setup() -> (
+    Env,
+    Address,
+    Address,
+    token::Client<'static>,
+    token::StellarAssetClient<'static>,
+) {
     let env = Env::default();
     env.mock_all_auths();
 
     let contract_id = env.register(EarlyWageContract, ());
     let admin = Address::generate(&env);
-    let token_client = create_token(&env, &admin);
+    let (token_client, sac_client) = create_token(&env, &admin);
 
     // Initialize
     let client = EarlyWageContractClient::new(&env, &contract_id);
     client.initialize(&admin);
 
-    (env, contract_id, admin, token_client)
+    (env, contract_id, admin, token_client, sac_client)
 }
 
 // ============================================================
@@ -73,13 +85,13 @@ fn test_initialize_twice_fails() {
 
 #[test]
 fn test_register_employee_success() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let employee_wallet = Address::generate(&env);
-    let salary: u128 = 5_000_0000000; // 5,000 with 7 decimals
+    let salary: u128 = 50_000_000_000; // 5,000 with 7 decimals
 
-    let emp_id = client.register_employee(&employee_wallet, &salary);
+    let emp_id = client.register_employee(&employee_wallet, &salary, &token_client.address);
     assert_eq!(emp_id, 1);
 
     // Verify details
@@ -94,16 +106,16 @@ fn test_register_employee_success() {
 
 #[test]
 fn test_register_multiple_employees() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet1 = Address::generate(&env);
     let wallet2 = Address::generate(&env);
     let wallet3 = Address::generate(&env);
 
-    let id1 = client.register_employee(&wallet1, &5000u128);
-    let id2 = client.register_employee(&wallet2, &7500u128);
-    let id3 = client.register_employee(&wallet3, &3000u128);
+    let id1 = client.register_employee(&wallet1, &5000u128, &token_client.address);
+    let id2 = client.register_employee(&wallet2, &7500u128, &token_client.address);
+    let id3 = client.register_employee(&wallet3, &3000u128, &token_client.address);
 
     assert_eq!(id1, 1);
     assert_eq!(id2, 2);
@@ -114,22 +126,22 @@ fn test_register_multiple_employees() {
 #[test]
 #[should_panic(expected = "Error(Contract, #4)")]
 fn test_register_duplicate_wallet_fails() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &5000u128);
-    client.register_employee(&wallet, &8000u128); // Duplicate → AlreadyRegistered
+    client.register_employee(&wallet, &5000u128, &token_client.address);
+    client.register_employee(&wallet, &8000u128, &token_client.address); // Duplicate → AlreadyRegistered
 }
 
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_register_zero_salary_fails() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &0u128); // Zero salary → InvalidAmount
+    client.register_employee(&wallet, &0u128, &token_client.address); // Zero salary → InvalidAmount
 }
 
 // ============================================================
@@ -138,24 +150,24 @@ fn test_register_zero_salary_fails() {
 
 #[test]
 fn test_deposit_to_vault_success() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
-    // Mint tokens to admin
-    token_client.mint(&admin, &100_000_0000000);
+    // Mint tokens to admin via StellarAssetClient
+    sac_client.mint(&admin, &1_000_000_000_000);
 
     // Deposit
-    client.deposit_to_vault(&admin, &50_000_0000000i128, &token_client.address);
+    client.deposit_to_vault(&admin, &500_000_000_000_i128, &token_client.address);
 
     // Check vault balance
     let balance = client.vault_balance(&token_client.address);
-    assert_eq!(balance, 50_000_0000000);
+    assert_eq!(balance, 500_000_000_000);
 }
 
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_deposit_zero_amount_fails() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     client.deposit_to_vault(&admin, &0i128, &token_client.address); // InvalidAmount
@@ -164,7 +176,7 @@ fn test_deposit_zero_amount_fails() {
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_deposit_negative_amount_fails() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     client.deposit_to_vault(&admin, &-100i128, &token_client.address); // InvalidAmount
@@ -176,16 +188,16 @@ fn test_deposit_negative_amount_fails() {
 
 #[test]
 fn test_request_advance_success() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
     let salary: u128 = 10_000;
 
-    client.register_employee(&emp_wallet, &salary);
+    client.register_employee(&emp_wallet, &salary, &token_client.address);
 
     // Fund the vault
-    token_client.mint(&admin, &100_000);
+    sac_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Request advance of 5,000 (fee = 5000 * 125 / 10000 = 62)
@@ -202,13 +214,13 @@ fn test_request_advance_success() {
 #[test]
 #[should_panic(expected = "Error(Contract, #6)")]
 fn test_request_advance_exceeds_salary_fails() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
-    client.register_employee(&emp_wallet, &5000u128);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
 
-    token_client.mint(&admin, &100_000);
+    sac_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Try to advance entire salary (>= rem_salary) → ExceedsRemainingSalary
@@ -218,11 +230,11 @@ fn test_request_advance_exceeds_salary_fails() {
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_request_advance_zero_amount_fails() {
-    let (env, contract_id, _admin, token_client) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
-    client.register_employee(&emp_wallet, &5000u128);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
 
     client.request_advance(&1u128, &0i128, &token_client.address); // InvalidAmount
 }
@@ -230,7 +242,7 @@ fn test_request_advance_zero_amount_fails() {
 #[test]
 #[should_panic(expected = "Error(Contract, #5)")]
 fn test_request_advance_nonexistent_employee_fails() {
-    let (env, contract_id, _admin, token_client) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     client.request_advance(&999u128, &100i128, &token_client.address); // EmployeeNotFound
@@ -242,16 +254,16 @@ fn test_request_advance_nonexistent_employee_fails() {
 
 #[test]
 fn test_release_remaining_salary_success() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
     let salary: u128 = 10_000;
 
-    client.register_employee(&emp_wallet, &salary);
+    client.register_employee(&emp_wallet, &salary, &token_client.address);
 
     // Fund the vault
-    token_client.mint(&admin, &100_000);
+    sac_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Request partial advance first
@@ -267,9 +279,9 @@ fn test_release_remaining_salary_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #7)")]
 fn test_release_zero_remaining_fails() {
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
@@ -286,9 +298,9 @@ fn test_release_zero_remaining_fails() {
     // This test verifies the error path is reachable if rem_salary were 0.
 
     // For testing, we'll register emp, release (pays rem_salary, sets to 0)
-    client.register_employee(&emp_wallet, &1000u128);
+    client.register_employee(&emp_wallet, &1000u128, &token_client.address);
 
-    token_client.mint(&admin, &100_000);
+    sac_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Release with new_salary = 0 (simulating end of employment)
@@ -301,10 +313,11 @@ fn test_release_zero_remaining_fails() {
 #[test]
 #[should_panic(expected = "Error(Contract, #5)")]
 fn test_release_nonexistent_employee_fails() {
-    let (env, contract_id, _admin, token_client) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
-    client.release_remaining_salary(&999u128, &token_client.address, &5000u128); // EmployeeNotFound
+    client.release_remaining_salary(&999u128, &token_client.address, &5000u128);
+    // EmployeeNotFound
 }
 
 // ============================================================
@@ -313,11 +326,11 @@ fn test_release_nonexistent_employee_fails() {
 
 #[test]
 fn test_get_remaining_salary() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
-    client.register_employee(&wallet, &8500u128);
+    client.register_employee(&wallet, &8500u128, &token_client.address);
 
     let remaining = client.get_remaining_salary(&1u128);
     assert_eq!(remaining, 8500);
@@ -326,7 +339,7 @@ fn test_get_remaining_salary() {
 #[test]
 #[should_panic(expected = "Error(Contract, #5)")]
 fn test_get_details_nonexistent_fails() {
-    let (env, contract_id, _admin, _token) = setup();
+    let (env, contract_id, _admin, _token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     client.get_emp_details(&42u128); // EmployeeNotFound
@@ -334,7 +347,7 @@ fn test_get_details_nonexistent_fails() {
 
 #[test]
 fn test_get_admin() {
-    let (env, contract_id, admin, _token) = setup();
+    let (env, contract_id, admin, _token_client, _sac) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     assert_eq!(client.get_admin(), admin);

@@ -1,0 +1,57 @@
+name: Go Backend CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "Go-Sdk/**"
+      - ".github/workflows/backend.yml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "Go-Sdk/**"
+      - ".github/workflows/backend.yml"
+
+jobs:
+  backend-ci:
+    name: Go Backend CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Go-Sdk
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+          cache-dependency-path: Go-Sdk/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify module integrity
+        run: go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests with race detection and coverage
+        run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
+
+      - name: Display test coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage-report
+          path: Go-Sdk/coverage.out
+
+      - name: Verify build succeeds
+        run: go build ./...

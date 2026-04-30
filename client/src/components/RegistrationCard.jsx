@@ -10,8 +10,7 @@ import InputField from "./InputField";
 const RegistrationCard = ({ onSuccess }) => {
     const { walletAddress } = useWalletContext();
     const setEmpData = useEmployeeStore((state) => state.setEmpData);
-    const setError = useEmployeeStore((state) => state.setError);
-    const isRegistered = useEmployeeStore((state) => state.isRegistered);
+
     // Remove global loading states that get stuck on app init
     const [isLoading, setIsLoading] = useState(false);
 

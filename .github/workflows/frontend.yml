@@ -1,0 +1,60 @@
+name: React Frontend CI
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend.yml"
+
+jobs:
+  frontend-ci:
+    name: React Frontend CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies (clean install)
+        run: npm ci
+
+      - name: Create .env for build
+        run: |
+          cp .env.example .env
+          # Stub out required Vite env vars so the build doesn't fail due to missing values
+          echo "VITE_SUPABASE_URL=https://placeholder.supabase.co" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=placeholder_anon_key" >> .env
+          echo "VITE_API_KEY=placeholder_api_key" >> .env
+          echo "VITE_API_BASE_URL=http://localhost:8080" >> .env
+          echo "VITE_CONTRACT_TOKEN=placeholder_token" >> .env
+          echo "VITE_CONTRACT_WAGE=placeholder_wage" >> .env
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build (catches TypeScript/Vite errors)
+        run: npm run build
+
+      - name: Upload dist/ as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: client/dist/
+          if-no-files-found: error

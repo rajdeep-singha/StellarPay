@@ -1,0 +1,139 @@
+name: Deploy (CD)
+
+on:
+  workflow_run:
+    workflows: ["Go Backend CI", "React Frontend CI", "Smart Contract CI (Rust/Soroban)"]
+    types: [completed]
+    branches: [main]
+
+# Require all three CI jobs to pass before deploying
+jobs:
+  # ── Wait for CI to pass ──────────────────────────────────────────────────────
+  check-ci:
+    name: Wait for CI workflows
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Check all CI workflows passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=${{ github.event.workflow_run.head_sha }}
+          for workflow in "Go Backend CI" "React Frontend CI" "Smart Contract CI (Rust/Soroban)"; do
+            status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows" \
+              --jq ".workflows[] | select(.name==\"$workflow\") | .id" | \
+              xargs -I{} gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/{}/runs?head_sha=$SHA&per_page=1" \
+              --jq '.workflow_runs[0].conclusion')
+            [ "$status" = "success" ] || (echo "$workflow: $status - aborting" && exit 1)
+          done
+          echo "All CI workflows passed!"
+
+  # ── Deploy Frontend ──────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    needs: check-ci
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_API_KEY: ${{ secrets.API_KEY }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_CONTRACT_TOKEN: ${{ secrets.VITE_CONTRACT_TOKEN }}
+          VITE_CONTRACT_WAGE: ${{ secrets.VITE_CONTRACT_WAGE }}
+        run: npm run build
+
+      # ── Vercel deployment (uncomment & configure once Vercel token is set) ──
+      # - name: Deploy to Vercel
+      #   uses: amondnet/vercel-action@v25
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      #     working-directory: client/dist
+      #     vercel-args: "--prod"
+
+      - name: Upload dist artifact (fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-frontend-dist
+          path: client/dist/
+
+  # ── Deploy Backend ───────────────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Go Backend
+    runs-on: ubuntu-latest
+    needs: check-ci
+
+    defaults:
+      run:
+        working-directory: Go-Sdk
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+          cache-dependency-path: Go-Sdk/go.sum
+
+      - name: Build Go binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -o stellarpay-backend ./...
+
+      - name: Upload backend binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellarpay-backend-binary
+          path: Go-Sdk/stellarpay-backend
+
+      # ── Railway / Fly.io / Docker deployment ─────────────────────────────────
+      # Uncomment the section matching your chosen hosting provider:
+      #
+      # Option A — Railway (set RAILWAY_TOKEN secret):
+      # - name: Install Railway CLI
+      #   run: npm install -g @railway/cli
+      # - name: Deploy to Railway
+      #   env:
+      #     RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      #   run: railway up --service stellarpay-backend
+      #
+      # Option B — Fly.io (set FLY_API_TOKEN secret):
+      # - name: Deploy to Fly.io
+      #   uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: flyctl deploy --remote-only
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      #
+      # Option C — Docker Hub + self-hosted server:
+      # - name: Build and push Docker image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: Go-Sdk
+      #     push: true
+      #     tags: ${{ secrets.DOCKER_USERNAME }}/stellarpay-backend:latest

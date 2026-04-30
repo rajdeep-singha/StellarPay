@@ -1,0 +1,65 @@
+name: Smart Contract CI (Rust/Soroban)
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "early-wager-contract/**"
+      - ".github/workflows/contract.yml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "early-wager-contract/**"
+      - ".github/workflows/contract.yml"
+
+jobs:
+  contract-ci:
+    name: Rust/Soroban CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: early-wager-contract
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            early-wager-contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('early-wager-contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy (deny warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all
+
+      - name: Build release WASM artifact
+        run: cargo build --release --target wasm32-unknown-unknown
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soroban-wasm
+          path: early-wager-contract/target/wasm32-unknown-unknown/release/*.wasm
+          if-no-files-found: warn

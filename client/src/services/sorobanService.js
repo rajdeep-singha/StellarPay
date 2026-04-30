@@ -54,16 +54,12 @@ export const SUPPORTED_TOKENS = [
 
 // Fetch live exchange rates relative to USD
 export async function fetchExchangeRates() {
-  try {
-    // Fallback mock rates — replace with real price feed in production
-    return {
-      XLM: 0.11,
-      USDC: 1.0,
-      EURC: 1.08,
-    };
-  } catch {
-    return { XLM: 0.11, USDC: 1.0, EURC: 1.08 };
-  }
+  // Fallback mock rates — replace with real price feed in production
+  return {
+    XLM: 0.11,
+    USDC: 1.0,
+    EURC: 1.08,
+  };
 }
 
 // Initialize Soroban RPC client
@@ -74,7 +70,7 @@ function getWageContract() {
   }
   try {
     return new Contract(CONTRACT_ADDRESS_WAGE);
-  } catch (err) {
+  } catch {
     throw new Error(`Invalid contract ID for CONTRACT_ADDRESS_WAGE: ${CONTRACT_ADDRESS_WAGE}`);
   }
 }
