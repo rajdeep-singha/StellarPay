@@ -334,7 +334,6 @@ func sendAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use context for network requests
 	client := horizonclient.DefaultTestNetClient
 	
 	ar := horizonclient.AccountRequest{AccountID: sourceKP.Address()}
@@ -453,13 +452,16 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Apply middleware chain: security headers -> rate limiting -> CORS -> handlers
-	handler := securityHeadersMiddleware(rateLimitMiddleware(enableCORS(mux)))
-
 	// Register handlers with validation and auth middleware
 	mux.HandleFunc("/api/send", validateRequestMiddleware(apiKeyAuth(sendAsset)))
-	mux.HandleFunc("/api/balances", validateRequestMiddleware(getAccountBalances))
+	// /api/balances exposes Stellar account data; protect it with the same
+	// API-key middleware used by /api/send so unauthenticated callers cannot
+	// enumerate arbitrary account balances.
+	mux.HandleFunc("/api/balances", validateRequestMiddleware(apiKeyAuth(getAccountBalances)))
 	mux.HandleFunc("/api/health", healthCheck)
+
+	// Apply middleware chain: security headers -> rate limiting -> CORS -> handlers
+	handler := securityHeadersMiddleware(rateLimitMiddleware(enableCORS(mux)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
