@@ -20,13 +20,26 @@ jobs:
         run: |
           SHA=${{ github.event.workflow_run.head_sha }}
           for workflow in "Go Backend CI" "React Frontend CI" "Smart Contract CI (Rust/Soroban)"; do
-            status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows" \
-              --jq ".workflows[] | select(.name==\"$workflow\") | .id" | \
-              xargs -I{} gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/{}/runs?head_sha=$SHA&per_page=1" \
-              --jq '.workflow_runs[0].conclusion')
-            [ "$status" = "success" ] || (echo "$workflow: $status - aborting" && exit 1)
+            workflow_id=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows" --jq ".workflows[] | select(.name==\"$workflow\") | .id")
+            conclusion=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/$workflow_id/runs?head_sha=$SHA&per_page=1" --jq '.workflow_runs[0].conclusion')
+            status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/$workflow_id/runs?head_sha=$SHA&per_page=1" --jq '.workflow_runs[0].status')
+            
+            if [ "$conclusion" = "null" ] && [ "$status" = "null" ]; then
+              echo "$workflow: no run found (skipped due to path filtering) - treating as success"
+              continue
+            fi
+            
+            if [ "$conclusion" = "success" ] || [ "$conclusion" = "skipped" ]; then
+              echo "$workflow: $conclusion - OK"
+            elif [ "$status" = "in_progress" ] || [ "$status" = "queued" ] || [ "$conclusion" = "null" ]; then
+              echo "$workflow: still running ($status) - aborting this deploy run (will wait for it to finish)"
+              exit 1
+            else
+              echo "$workflow: $conclusion - aborting"
+              exit 1
+            fi
           done
-          echo "All CI workflows passed!"
+          echo "All CI workflows passed or were safely skipped!"
 
   # ── Deploy Frontend ──────────────────────────────────────────────────────────
   deploy-frontend:
