@@ -10,7 +10,10 @@ import (
 )
 
 func init() {
-	os.Setenv("STELLAR_SOURCE_SECRET", "SDXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ")
+	// Valid Stellar seed key format (S + 55 uppercase base32 A-Z2-7 chars) for unit tests.
+	// This key is intentionally not funded — handlers that attempt real network calls
+	// will fail at the Horizon step (tested separately), not at key parsing.
+	os.Setenv("STELLAR_SOURCE_SECRET", "SCZANGBA5TNBORGH2FDHVKDXCURQSD3R7TSQD35X53B27JLCJF67LEW")
 }
 
 // ============================================================
