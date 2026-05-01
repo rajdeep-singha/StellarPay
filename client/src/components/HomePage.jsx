@@ -53,7 +53,7 @@ const HomePage = () => {
 
     try {
       setIsLoading(true);
-      const { isRegistered, empData } = await checkUser(walletAddress);
+      const { isRegistered, empData } = await checkUser();
 
       if (!isRegistered) {
         setShowRegisterModal(true);
@@ -81,6 +81,11 @@ const HomePage = () => {
     }
   }, [walletAddress]);
 
+  useEffect(() => {
+    // Update wallet address in store when it changes from wallet context
+    const setWalletAddress = useEmployeeStore.getState().setWalletAddress;
+    setWalletAddress(walletAddress);
+  }, [walletAddress]);
 
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });

@@ -453,12 +453,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Apply middleware chain: security headers -> rate limiting -> CORS -> handlers
-	handler := securityHeadersMiddleware(rateLimitMiddleware(enableCORS(mux)))
-
-	// Register handlers with validation and auth middleware
-	mux.HandleFunc("/api/send", validateRequestMiddleware(apiKeyAuth(sendAsset)))
-	mux.HandleFunc("/api/balances", validateRequestMiddleware(getAccountBalances))
+	mux.HandleFunc("/api/send", apiKeyAuth(sendAsset))
+	mux.HandleFunc("/api/balances", apiKeyAuth(getAccountBalances))
 	mux.HandleFunc("/api/health", healthCheck)
 
 	port := os.Getenv("PORT")

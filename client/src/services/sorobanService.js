@@ -222,17 +222,27 @@ export async function registerEmployee(publicKey, walletAddress, salary, salaryT
     const args = [
       addressToScVal(walletAddress),
       numberToU128(salary),
-      addressToScVal(salaryToken),
+      addressToScVal(salaryToken || "native"),
     ];
 
     const preparedTx = await buildContractCall(publicKey, CONTRACT_ADDRESS_WAGE, "register_employee", args);
     const signedTx = await signWithFreighter(preparedTx);
 
     const result = await submitTransaction(signedTx);
-    if (import.meta.env.DEV) {
-      console.log("registerEmployee transaction success:", result);
+    console.log("registerEmployee transaction success:", result);
+    
+    // Extract employee ID from transaction result if available
+    let employeeId = null;
+    if (result.result) {
+      try {
+        const scVal = xdr.ScVal.fromXDR(result.result);
+        employeeId = Number(scVal.u128().lo().toString());
+      } catch (e) {
+        console.warn("Could not extract employee ID from result:", e);
+      }
     }
-    return result;
+    
+    return { ...result, employeeId };
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error("registerEmployee error:", error);
