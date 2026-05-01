@@ -26,7 +26,7 @@ const RegistrationCard = ({ onSuccess }) => {
     });
 
     const dataValidate = () => {
-        const newErrors = { general: "" }; // Clear general error on validation
+        const newErrors = { general: "" };
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         if (!form.email || !emailRegex.test(form.email)) {
@@ -36,7 +36,8 @@ const RegistrationCard = ({ onSuccess }) => {
             newErrors.salary = "Please enter a valid salary";
         }
         setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+        // Only email and salary fields count as validation failures
+        return !newErrors.email && !newErrors.salary;
     }
 
     const handleSubmit = async (e) => {
@@ -87,26 +88,26 @@ const RegistrationCard = ({ onSuccess }) => {
             });
 
             onSuccess?.();
-        } catch (error) {
+        } catch (err) {
             // Check if the Blockchain rejected it because we are ALREADY registered
-            if (error.message?.includes("InvalidAction") || error.message?.includes("UnreachableCodeReached")) {
+            if (err.message?.includes("InvalidAction") || err.message?.includes("UnreachableCodeReached")) {
                 try {
                     const existingData = await getEmployeeWithWA(walletAddress);
                     setEmpData({
                         empId: existingData?.empId || null,
                         salary: existingData.rem_salary / 10000000,
-                        email: existingData.email,
-                        isRegistered: true, // Force Zustand to see us!
+                        email: form.email,
+                        isRegistered: true,
                     });
-                    if (onSuccess) onSuccess(); // Notify HomePage
-                    return; // Crucial early exit
+                    if (onSuccess) onSuccess();
+                    return;
                 } catch (readErr) {
                     console.error("Failed to fetch existing profile:", readErr);
                 }
             }
 
-            console.error("CRITICAL REGISTRATION ERROR CAUGHT IN UI:", error);
-            setErrors({ ...error, general: error.message || "An error occurred during registration. Please try again." });
+            console.error("CRITICAL REGISTRATION ERROR CAUGHT IN UI:", err);
+            setErrors((prev) => ({ ...prev, general: err.message || "An error occurred during registration. Please try again." }));
         }
         finally {
             setIsLoading(false);
