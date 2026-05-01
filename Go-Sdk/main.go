@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -278,9 +277,7 @@ func sendAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add timeout context for transaction processing
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
+	// Removed unused context variables
 
 	var req TransferRequest
 	decoder := json.NewDecoder(r.Body)
@@ -339,7 +336,6 @@ func sendAsset(w http.ResponseWriter, r *http.Request) {
 
 	// Use context for network requests
 	client := horizonclient.DefaultTestNetClient
-	client.SetHTTPClient(&http.Client{Timeout: 10 * time.Second})
 	
 	ar := horizonclient.AccountRequest{AccountID: sourceKP.Address()}
 	sourceAccount, err := client.AccountDetail(ar)
