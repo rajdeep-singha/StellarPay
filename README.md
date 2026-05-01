@@ -31,6 +31,30 @@ $2,000 rewarded every month to validated builders.
 
 ---
 
+## User Feedback
+<img width="1234" height="776" alt="image" src="https://github.com/user-attachments/assets/c1e8645e-aadc-4975-8533-203486b389b1" />
+
+### Our Users
+FeedBack Form : https://docs.google.com/forms/d/e/1FAIpQLSdGhtCQ2Z9_skiKndFdVWFpNmxg7q7-iEW2T0KSGa-VPWWHuw/viewform
+
+| User Name | User Email | User Wallet Address |
+|-----------|------------|---------------------|
+| Ansh | anshansh5999@gmail.com| `GCB3VWQA52OMVE6XQ4XDXEIKAYCN3ORBSVRXXEHQXNJAZUFMZNP3VTJI` |
+| Samriddhi Tripathi | samriddhit13@gmail.com | `GAVTU3FCWGXWHXD33LIORGUJ6CR5XEUJ4AKJVXXIOOOQRXGGGNGBKJNQ` |
+| Utkarsh Singh | utkarshsingh2321@gmail.com | `GDRB6WSREDVNHB63MSEQOUOF52NNEJ36UQ3LRA5P7YP4C5JUNXNV34YD` |
+| Achika bala | achika@gmail.com | `GDQNFJVN7ZJDEM3E7ZMVA4OIL2VAC4J6XRV4EQ62R4KNFPEZSSXASDRJ` |
+| EAnsh Singh | anshansh5999@gmail.com | `GBKYNHPCT7EHUBNL5VMFLEYLHDST5H5XKJGMKZYNEKJZCUCJCLO3SSRE` |
+
+### User Feedback Implementation
+
+| User Name | User Email | User Wallet Address | User Feedback | Commit ID |
+|-----------|------------|---------------------|---------------|-----------|
+| Swarnadeep Chanda | swarnadeep.c17@gmail.com | `GBNWTLZKQPYJLPZNO6YSQ3XASIUP4IJA2KTKXBJMH35IWCEVQ6BQFKGN` | Implement CI/CD pipelines for better test case functionality | [`64b0a17`](https://github.com/rajdeep-singha/StellarPay/commit/64b0a17) · [PR #67](https://github.com/rajdeep-singha/StellarPay/pull/67) |
+| Samriddha Das | samriddhadas0106@gmail.com | `GAL6K7NYTU7RZKSL2HT72QVF3BEPHIN4UCHVAB26UGFS6LN3LCVB3UJB` | Add live XLM/USD price feed with real-time ticker component | [`dc48462`](https://github.com/rajdeep-singha/StellarPay/commit/dc48462) · [PR #75](https://github.com/rajdeep-singha/StellarPay/pull/75) |
+| Soni shree | sonishree125@gmail.com | `GCQJEHOEIJ46JONK5LCIDGIVUIDFLTFMHSTIJG2HVIE6VHEU3MYVLPRZ` | Add CSV export functionality for payroll data so that we can print payrolls — very handy | [`f2fb3fe`](https://github.com/rajdeep-singha/StellarPay/commit/f2fb3fe) · [PR #32](https://github.com/rajdeep-singha/StellarPay/pull/32) |
+
+## Response Sheet : https://docs.google.com/spreadsheets/d/1aaM2YWWxkLgSeUsUFGImxVuhtmpZeDdKUeYEpROhr_4/edit?usp=sharing
+
 ##  About
 
 **StellarPay** is a next-generation remittance and payroll platform built on the **Stellar blockchain**. We leverage Soroban smart contracts to provide:

@@ -231,14 +231,14 @@ fn test_request_advance_exceeds_salary_fails() {
 #[should_panic(expected = "Error(Contract, #6)")]
 fn test_request_advance_equal_salary_fails() {
     // Test for Bug 1 fix: amount == rem_salary should fail
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
     let salary: u128 = 5000;
-    client.register_employee(&emp_wallet, &salary);
+    client.register_employee(&emp_wallet, &salary, &token_client.address);
 
-    token_client.mint(&admin, &100_000);
+    sac_client.mint(&admin, &100_000);
     client.deposit_to_vault(&admin, &100_000i128, &token_client.address);
 
     // Try to advance exactly the remaining salary → ExceedsRemainingSalary
@@ -249,14 +249,14 @@ fn test_request_advance_equal_salary_fails() {
 #[should_panic(expected = "Error(Contract, #9)")]
 fn test_request_advance_insufficient_vault_balance_fails() {
     // Test for Bug 2 fix: insufficient vault balance should fail with clear error
-    let (env, contract_id, admin, token_client) = setup();
+    let (env, contract_id, admin, token_client, sac_client) = setup();
     let client = EarlyWageContractClient::new(&env, &contract_id);
 
     let emp_wallet = Address::generate(&env);
-    client.register_employee(&emp_wallet, &5000u128);
+    client.register_employee(&emp_wallet, &5000u128, &token_client.address);
 
     // Deposit only 1000 to vault, but try to advance 5000
-    token_client.mint(&admin, &1000);
+    sac_client.mint(&admin, &1000);
     client.deposit_to_vault(&admin, &1000i128, &token_client.address);
 
     // Should fail with InsufficientVaultBalance before attempting transfer
