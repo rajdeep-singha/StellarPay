@@ -389,3 +389,37 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 [Report Bug](https://github.com/your-username/Stellar-Pay/issues) · [Request Feature](https://github.com/your-username/Stellar-Pay/issues)
 
 </div>
+## FAQ
+
+### How do I configure environment variables?
+Create a `.env` file and add all required configuration values before running the project.
+
+### What should I do if wallet connection fails?
+Verify wallet permissions, network settings, and browser compatibility.
+
+### How can I test remittance transactions safely?
+Use the Stellar testnet before deploying or testing with real funds.
+
+## Troubleshooting
+
+### Application does not start
+- Run dependency installation again
+- Check environment variables
+- Verify Node.js version
+
+### Wallet connection issues
+- Refresh the browser
+- Reconnect the wallet
+- Check network configuration
+
+### Smart contract errors
+- Verify contract deployment
+- Check transaction logs
+- Confirm correct network selection
+
+## Improvements
+
+- Added FAQ section for developers
+- Added troubleshooting guide
+- Improved onboarding documentation
+- Added common wallet and setup solutions
